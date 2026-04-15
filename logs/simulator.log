@@ -1,0 +1,170 @@
+2026-04-12 23:35:52 - SensorSimulator - INFO - ============================================================
+2026-04-12 23:35:52 - SensorSimulator - INFO -    Active sensors: 44
+2026-04-12 23:35:52 - SensorSimulator - INFO -    Measurement interval: 60 seconds
+2026-04-12 23:35:52 - SensorSimulator - INFO -    Anomaly probability: 1%
+2026-04-12 23:35:52 - SensorSimulator - INFO - ============================================================
+2026-04-12 23:36:04 - SensorSimulator - INFO - ============================================================
+2026-04-12 23:36:04 - SensorSimulator - INFO -    Total measurements: 139
+2026-04-12 23:36:04 - SensorSimulator - INFO -    Total anomalies detected: 0
+2026-04-12 23:36:04 - SensorSimulator - INFO - ============================================================
+2026-04-12 23:36:04 - SensorSimulator - INFO - ============================================================
+2026-04-12 23:36:04 - SensorSimulator - INFO -    Total measurements: 139
+2026-04-12 23:36:04 - SensorSimulator - INFO -    Total anomalies detected: 0
+2026-04-12 23:36:04 - SensorSimulator - INFO - ============================================================
+2026-04-12 23:39:35 - SensorSimulator - INFO - ============================================================
+2026-04-12 23:39:35 - SensorSimulator - INFO -    Active sensors: 44
+2026-04-12 23:39:35 - SensorSimulator - INFO -    Measurement interval: 60 seconds
+2026-04-12 23:39:35 - SensorSimulator - INFO -    Anomaly probability: 1%
+2026-04-12 23:39:35 - SensorSimulator - INFO - ============================================================
+2026-04-12 23:40:40 - SensorSimulator - INFO - ============================================================
+2026-04-12 23:40:40 - SensorSimulator - INFO -    Total measurements: 278
+2026-04-12 23:40:40 - SensorSimulator - INFO -    Total anomalies detected: 2
+2026-04-12 23:40:40 - SensorSimulator - INFO - ============================================================
+2026-04-12 23:40:40 - SensorSimulator - INFO - ============================================================
+2026-04-12 23:40:40 - SensorSimulator - INFO -    Total measurements: 278
+2026-04-12 23:40:40 - SensorSimulator - INFO -    Total anomalies detected: 2
+2026-04-12 23:40:40 - SensorSimulator - INFO - ============================================================
+2026-04-12 23:42:28 - SensorSimulator - INFO - Loaded 44 active sensors
+2026-04-12 23:42:28 - SensorSimulator - INFO - ============================================================
+2026-04-12 23:42:28 - SensorSimulator - INFO -    Active sensors: 44
+2026-04-12 23:42:28 - SensorSimulator - INFO -    Measurement interval: 60 seconds
+2026-04-12 23:42:28 - SensorSimulator - INFO -    Anomaly probability: 1%
+2026-04-12 23:42:28 - SensorSimulator - INFO - ============================================================
+2026-04-12 23:43:13 - SensorSimulator - INFO - ============================================================
+2026-04-12 23:43:13 - SensorSimulator - INFO -    Total measurements: 139
+2026-04-12 23:43:13 - SensorSimulator - INFO -    Total anomalies detected: 1
+2026-04-12 23:43:13 - SensorSimulator - INFO - ============================================================
+2026-04-12 23:43:13 - SensorSimulator - INFO - ============================================================
+2026-04-12 23:43:13 - SensorSimulator - INFO -    Total measurements: 139
+2026-04-12 23:43:13 - SensorSimulator - INFO -    Total anomalies detected: 1
+2026-04-12 23:43:13 - SensorSimulator - INFO - ============================================================
+2026-04-12 23:43:18 - SensorSimulator - INFO - Loaded 44 active sensors
+2026-04-12 23:43:18 - SensorSimulator - INFO - ============================================================
+2026-04-12 23:43:19 - SensorSimulator - INFO -    Active sensors: 44
+2026-04-12 23:43:19 - SensorSimulator - INFO -    Measurement interval: 60 seconds
+2026-04-12 23:43:19 - SensorSimulator - INFO -    Anomaly probability: 1%
+2026-04-12 23:43:19 - SensorSimulator - INFO - ============================================================
+2026-04-12 23:44:28 - SensorSimulator - INFO - ============================================================
+2026-04-12 23:44:28 - SensorSimulator - INFO -    Total measurements: 278
+2026-04-12 23:44:28 - SensorSimulator - INFO -    Total anomalies detected: 5
+2026-04-12 23:44:28 - SensorSimulator - INFO - ============================================================
+2026-04-12 23:44:28 - SensorSimulator - INFO - ============================================================
+2026-04-12 23:44:28 - SensorSimulator - INFO -    Total measurements: 278
+2026-04-12 23:44:28 - SensorSimulator - INFO -    Total anomalies detected: 5
+2026-04-12 23:44:28 - SensorSimulator - INFO - ============================================================
+2026-04-12 23:45:48 - SensorSimulator - INFO - Loaded 44 active sensors
+2026-04-12 23:45:48 - SensorSimulator - INFO - ============================================================
+2026-04-12 23:45:48 - SensorSimulator - INFO -    Active sensors: 44
+2026-04-12 23:45:48 - SensorSimulator - INFO -    Measurement interval: 60 seconds
+2026-04-12 23:45:48 - SensorSimulator - INFO -    Anomaly probability: 1%
+2026-04-12 23:45:48 - SensorSimulator - INFO - ============================================================
+2026-04-12 23:48:47 - SensorSimulator - INFO - ============================================================
+2026-04-12 23:48:47 - SensorSimulator - INFO -    Total measurements: 417
+2026-04-12 23:48:47 - SensorSimulator - INFO -    Total anomalies detected: 4
+2026-04-12 23:48:47 - SensorSimulator - INFO - ============================================================
+2026-04-12 23:48:47 - SensorSimulator - INFO - ============================================================
+2026-04-12 23:48:47 - SensorSimulator - INFO -    Total measurements: 417
+2026-04-12 23:48:47 - SensorSimulator - INFO -    Total anomalies detected: 4
+2026-04-12 23:48:47 - SensorSimulator - INFO - ============================================================
+2026-04-12 23:50:35 - SensorSimulator - INFO - Loaded 44 active sensors
+2026-04-12 23:50:35 - SensorSimulator - INFO - ============================================================
+2026-04-12 23:50:35 - SensorSimulator - INFO -    Active sensors: 44
+2026-04-12 23:50:35 - SensorSimulator - INFO -    Measurement interval: 1 seconds
+2026-04-12 23:50:35 - SensorSimulator - INFO -    Anomaly probability: 1%
+2026-04-12 23:50:35 - SensorSimulator - INFO - ============================================================
+2026-04-12 23:51:22 - SensorSimulator - INFO - ============================================================
+2026-04-12 23:51:22 - SensorSimulator - INFO -    Total measurements: 4170
+2026-04-12 23:51:22 - SensorSimulator - INFO -    Total anomalies detected: 46
+2026-04-12 23:51:22 - SensorSimulator - INFO - ============================================================
+2026-04-12 23:51:22 - SensorSimulator - INFO - ============================================================
+2026-04-12 23:51:22 - SensorSimulator - INFO -    Total measurements: 4170
+2026-04-12 23:51:22 - SensorSimulator - INFO -    Total anomalies detected: 46
+2026-04-12 23:51:22 - SensorSimulator - INFO - ============================================================
+2026-04-14 22:19:31 - SensorSimulator - INFO - Loaded 44 active sensors
+2026-04-14 22:19:31 - SensorSimulator - INFO - ============================================================
+2026-04-14 22:19:31 - SensorSimulator - INFO -    Active sensors: 44
+2026-04-14 22:19:31 - SensorSimulator - INFO -    Measurement interval: 10 seconds
+2026-04-14 22:19:31 - SensorSimulator - INFO -    Anomaly probability: 1%
+2026-04-14 22:19:31 - SensorSimulator - INFO - ============================================================
+2026-04-14 22:21:36 - SensorSimulator - INFO - ============================================================
+2026-04-14 22:21:36 - SensorSimulator - INFO -    Total measurements: 1807
+2026-04-14 22:21:36 - SensorSimulator - INFO -    Total anomalies detected: 22
+2026-04-14 22:21:36 - SensorSimulator - INFO - ============================================================
+2026-04-14 22:21:36 - SensorSimulator - INFO - ============================================================
+2026-04-14 22:21:36 - SensorSimulator - INFO -    Total measurements: 1807
+2026-04-14 22:21:36 - SensorSimulator - INFO -    Total anomalies detected: 22
+2026-04-14 22:21:36 - SensorSimulator - INFO - ============================================================
+2026-04-14 22:21:40 - SensorSimulator - INFO - Loaded 44 active sensors
+2026-04-14 22:21:40 - SensorSimulator - INFO - ============================================================
+2026-04-14 22:21:40 - SensorSimulator - INFO -    Active sensors: 44
+2026-04-14 22:21:40 - SensorSimulator - INFO -    Measurement interval: 2 seconds
+2026-04-14 22:21:40 - SensorSimulator - INFO -    Anomaly probability: 1%
+2026-04-14 22:21:40 - SensorSimulator - INFO - ============================================================
+2026-04-14 22:22:04 - SensorSimulator - INFO - ============================================================
+2026-04-14 22:22:04 - SensorSimulator - INFO -    Total measurements: 1390
+2026-04-14 22:22:04 - SensorSimulator - INFO -    Total anomalies detected: 19
+2026-04-14 22:22:04 - SensorSimulator - INFO - ============================================================
+2026-04-14 22:22:04 - SensorSimulator - INFO - ============================================================
+2026-04-14 22:22:04 - SensorSimulator - INFO -    Total measurements: 1390
+2026-04-14 22:22:04 - SensorSimulator - INFO -    Total anomalies detected: 19
+2026-04-14 22:22:04 - SensorSimulator - INFO - ============================================================
+2026-04-14 22:23:32 - SensorSimulator - INFO - Loaded 44 active sensors
+2026-04-14 22:23:32 - SensorSimulator - INFO - ============================================================
+2026-04-14 22:23:32 - SensorSimulator - INFO -    Active sensors: 44
+2026-04-14 22:23:32 - SensorSimulator - INFO -    Measurement interval: 2 seconds
+2026-04-14 22:23:32 - SensorSimulator - INFO -    Anomaly probability: 1%
+2026-04-14 22:23:32 - SensorSimulator - INFO - ============================================================
+2026-04-14 22:23:57 - SensorSimulator - INFO - ============================================================
+2026-04-14 22:23:57 - SensorSimulator - INFO -    Total measurements: 1529
+2026-04-14 22:23:57 - SensorSimulator - INFO -    Total anomalies detected: 20
+2026-04-14 22:23:57 - SensorSimulator - INFO - ============================================================
+2026-04-14 22:23:57 - SensorSimulator - INFO - ============================================================
+2026-04-14 22:23:57 - SensorSimulator - INFO -    Total measurements: 1529
+2026-04-14 22:23:57 - SensorSimulator - INFO -    Total anomalies detected: 20
+2026-04-14 22:23:57 - SensorSimulator - INFO - ============================================================
+2026-04-15 07:19:22 - SensorSimulator - INFO - Loaded 44 active sensors
+2026-04-15 07:19:22 - SensorSimulator - INFO - ============================================================
+2026-04-15 07:19:23 - SensorSimulator - INFO -    Active sensors: 44
+2026-04-15 07:19:23 - SensorSimulator - INFO -    Measurement interval: 2 seconds
+2026-04-15 07:19:23 - SensorSimulator - INFO -    Anomaly probability: 1%
+2026-04-15 07:19:23 - SensorSimulator - INFO - ============================================================
+2026-04-15 07:19:34 - SensorSimulator - INFO - ============================================================
+2026-04-15 07:19:34 - SensorSimulator - INFO -    Total measurements: 834
+2026-04-15 07:19:34 - SensorSimulator - INFO -    Total anomalies detected: 15
+2026-04-15 07:19:34 - SensorSimulator - INFO - ============================================================
+2026-04-15 07:19:34 - SensorSimulator - INFO - ============================================================
+2026-04-15 07:19:34 - SensorSimulator - INFO -    Total measurements: 834
+2026-04-15 07:19:34 - SensorSimulator - INFO -    Total anomalies detected: 15
+2026-04-15 07:19:34 - SensorSimulator - INFO - ============================================================
+2026-04-15 07:19:36 - SensorSimulator - INFO - Loaded 44 active sensors
+2026-04-15 07:19:36 - SensorSimulator - INFO - ============================================================
+2026-04-15 07:19:36 - SensorSimulator - INFO -    Active sensors: 44
+2026-04-15 07:19:36 - SensorSimulator - INFO -    Measurement interval: 15 seconds
+2026-04-15 07:19:36 - SensorSimulator - INFO -    Anomaly probability: 1%
+2026-04-15 07:19:36 - SensorSimulator - INFO - ============================================================
+2026-04-15 08:10:58 - SensorSimulator - INFO - Loaded 44 active sensors
+2026-04-15 08:10:58 - SensorSimulator - INFO - ============================================================
+2026-04-15 08:10:58 - SensorSimulator - INFO -    Active sensors: 44
+2026-04-15 08:10:58 - SensorSimulator - INFO -    Measurement interval: 15 seconds
+2026-04-15 08:10:58 - SensorSimulator - INFO -    Anomaly probability: 1%
+2026-04-15 08:10:58 - SensorSimulator - INFO - ============================================================
+2026-04-15 12:47:55 - SensorSimulator - INFO - Loaded 44 active sensors
+2026-04-15 12:47:55 - SensorSimulator - INFO - ============================================================
+2026-04-15 12:47:56 - SensorSimulator - INFO -    Active sensors: 44
+2026-04-15 12:47:56 - SensorSimulator - INFO -    Measurement interval: 15 seconds
+2026-04-15 12:47:56 - SensorSimulator - INFO -    Anomaly probability: 1%
+2026-04-15 12:47:56 - SensorSimulator - INFO - ============================================================
+2026-04-15 12:55:39 - SensorSimulator - INFO - ============================================================
+2026-04-15 12:55:39 - SensorSimulator - INFO -    Total measurements: 4309
+2026-04-15 12:55:39 - SensorSimulator - INFO -    Total anomalies detected: 109
+2026-04-15 12:55:39 - SensorSimulator - INFO - ============================================================
+2026-04-15 12:55:39 - SensorSimulator - INFO - ============================================================
+2026-04-15 12:55:39 - SensorSimulator - INFO -    Total measurements: 4309
+2026-04-15 12:55:39 - SensorSimulator - INFO -    Total anomalies detected: 109
+2026-04-15 12:55:39 - SensorSimulator - INFO - ============================================================
+2026-04-15 12:55:56 - SensorSimulator - INFO - Loaded 44 active sensors
+2026-04-15 12:55:56 - SensorSimulator - INFO - ============================================================
+2026-04-15 12:55:56 - SensorSimulator - INFO -    Active sensors: 44
+2026-04-15 12:55:56 - SensorSimulator - INFO -    Measurement interval: 15 seconds
+2026-04-15 12:55:56 - SensorSimulator - INFO -    Anomaly probability: 1%
+2026-04-15 12:55:56 - SensorSimulator - INFO - ============================================================
