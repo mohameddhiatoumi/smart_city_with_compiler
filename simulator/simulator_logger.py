@@ -28,7 +28,7 @@ class ColoredFormatter(logging.Formatter):
         return super().format(record)
 
 
-def setup_logger(log_file='../logs/simulator.log', level='INFO', console_output=True):
+def setup_logger(log_file='logs/simulator.log', level='INFO', console_output=True):
     """
     Setup logger with file and optional console output
     
@@ -50,8 +50,8 @@ def setup_logger(log_file='../logs/simulator.log', level='INFO', console_output=
     # Remove existing handlers
     logger.handlers = []
     
-    # File handler (no colors)
-    file_handler = logging.FileHandler(log_file)
+    # File handler - UTF-8 encoding to handle special characters
+    file_handler = logging.FileHandler(log_file, encoding='utf-8')
     file_handler.setLevel(logging.DEBUG)
     file_formatter = logging.Formatter(
         '%(asctime)s - %(name)s - %(levelname)s - %(message)s',
@@ -60,7 +60,7 @@ def setup_logger(log_file='../logs/simulator.log', level='INFO', console_output=
     file_handler.setFormatter(file_formatter)
     logger.addHandler(file_handler)
     
-    # Console handler (with colors)
+    # Console handler (with colors) - NO EMOJIS for Windows compatibility
     if console_output:
         console_handler = logging.StreamHandler()
         console_handler.setLevel(getattr(logging, level.upper()))
@@ -77,28 +77,28 @@ def setup_logger(log_file='../logs/simulator.log', level='INFO', console_output=
 def log_measurement(logger, sensor_id, measure_type, value, is_anomaly=False):
     """Log a measurement event"""
     if is_anomaly:
-        logger.warning(f"🚨 ANOMALY: {sensor_id} | {measure_type} = {value:.2f} (ABNORMAL)")
+        logger.warning(f"ANOMALY: {sensor_id} | {measure_type} = {value:.2f} (ABNORMAL)")
     else:
-        logger.debug(f"📊 {sensor_id} | {measure_type} = {value:.2f}")
+        logger.debug(f"DATA: {sensor_id} | {measure_type} = {value:.2f}")
 
 
 def log_sensor_status_change(logger, sensor_id, old_status, new_status, error_rate):
     """Log sensor status transition"""
     logger.warning(
-        f"⚠️  SENSOR STATUS CHANGE: {sensor_id} | {old_status} → {new_status} | "
+        f"SENSOR STATUS CHANGE: {sensor_id} | {old_status} -> {new_status} | "
         f"Error rate: {error_rate:.2f}%"
     )
 
 
 def log_intervention_created(logger, sensor_id, intervention_id):
     """Log automatic intervention creation"""
-    logger.info(f"🔧 INTERVENTION CREATED: #{intervention_id} for sensor {sensor_id}")
+    logger.info(f"INTERVENTION CREATED: #{intervention_id} for sensor {sensor_id}")
 
 
 def log_simulation_start(logger, num_sensors, interval):
     """Log simulation startup"""
     logger.info("="*60)
-    logger.info(f"🚀 SENSOR SIMULATOR STARTED")
+    logger.info(f"SENSOR SIMULATOR STARTED")
     logger.info(f"   Active sensors: {num_sensors}")
     logger.info(f"   Measurement interval: {interval} seconds")
     logger.info(f"   Anomaly probability: 1%")
@@ -108,7 +108,7 @@ def log_simulation_start(logger, num_sensors, interval):
 def log_simulation_stop(logger, total_measurements, total_anomalies):
     """Log simulation shutdown"""
     logger.info("="*60)
-    logger.info(f"🛑 SENSOR SIMULATOR STOPPED")
+    logger.info(f"SENSOR SIMULATOR STOPPED")
     logger.info(f"   Total measurements: {total_measurements}")
     logger.info(f"   Total anomalies detected: {total_anomalies}")
     logger.info("="*60)

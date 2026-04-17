@@ -88,9 +88,19 @@ class CodeGenerator:
     def _format_condition(self, condition: Condition) -> str:
         """Format a single condition"""
         # Special handling for date functions (they're already SQL expressions)
-        if condition.attribute in ['date_installation'] and 'strftime' in str(condition.value):
-            # The value is already a complete SQL expression
-            return condition.value.replace('=', '').strip()
+        if condition.attribute == 'date_installation' and 'strftime' in str(condition.value):
+            # Extract just the SQL expression without the = sign
+            value_str = str(condition.value)
+            if '=' in value_str:
+                return value_str.split('=', 1)[1].strip()
+            return value_str
+        
+        if condition.attribute == 'date_installation' and ('date(' in str(condition.value) or '>=' in str(condition.value)):
+            # For date range queries
+            value_str = str(condition.value)
+            if 'date(' in value_str or '>=' in value_str:
+                return f"{condition.attribute} {condition.operator} {value_str}"
+            return f"{condition.attribute} {condition.operator} {condition.value}"
         
         return f"{condition.attribute} {condition.operator} {condition.value}"
     

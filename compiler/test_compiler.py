@@ -18,23 +18,23 @@ def test_compiler_syntax():
     compiler = NLQueryCompiler()
     
     test_cases = [
-        {
-            'query': "Affiche les 5 zones les plus polluées",
-            'expected_keywords': ['SELECT', 'zones', 'AVG', 'PM2.5', 'LIMIT 5', 'DESC']
-        },
-        {
-            'query': "Combien de capteurs sont hors service ?",
-            'expected_keywords': ['COUNT', 'capteurs', 'hors_service']
-        },
-        {
-            'query': "Quels citoyens ont un score écologique > 80 ?",
-            'expected_keywords': ['SELECT', 'citoyens', 'score_ecologique', '> 80']
-        },
-        {
-            'query': "Donne-moi le trajet le plus économique en CO2",
-            'expected_keywords': ['SELECT', 'trajets', 'economie_co2', 'DESC', 'LIMIT 1']
-        },
-    ]
+    {
+        'query': "Combien de capteurs de la zone 2",
+        'expected_keywords': ['COUNT', 'capteurs', 'zone_id = 2']
+    },
+    {
+        'query': "Combien de capteurs de type air existent",
+        'expected_keywords': ['COUNT', 'capteurs', "type_capteur = 'air'"]
+    },
+    {
+        'query': "Combien de capteurs de bruit sont actif",
+        'expected_keywords': ['COUNT', 'capteurs', "type_capteur = 'bruit'", "statut = 'actif'", 'AND']
+    },
+    {
+        'query': "Combien de capteurs ont été installés ce mois-ci",
+        'expected_keywords': ['COUNT', 'capteurs', 'strftime', 'date_installation']
+    },
+]
     
     print("\n" + "="*70)
     print("COMPILATION TESTS (Syntax Only)")

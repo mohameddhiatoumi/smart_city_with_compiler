@@ -10,7 +10,7 @@ from .ast_nodes import SelectQuery, CountQuery, Condition, Join, AggregateFuncti
 from .grammar import (
     INTENT_KEYWORDS, ENTITY_MAPPINGS, ATTRIBUTE_MAPPINGS,
     STATUS_VALUES, OPERATORS, AGGREGATES, ORDER_KEYWORDS, 
-    POLLUTION_PATTERNS, SENSOR_TYPE_VALUES, TIME_PERIODS
+    POLLUTION_PATTERNS, SENSOR_TYPE_VALUES, TIME_PERIODS, SENSOR_TYPE_VALUES, TIME_PERIODS
 )
 
 
@@ -194,13 +194,18 @@ class Parser:
         """Extract zone number from query (e.g., 'zone 2' → 2)"""
         query_text = ' '.join(self.tokens)
         
-        # Pattern: "zone <number>" or "zone_id <number>"
+        # Pattern: "zone <number>"
         match = re.search(r'zone\s+(\d+)', query_text)
         if match:
             return int(match.group(1))
         
-        # Check for "de la zone <number>"
+        # Pattern: "de la zone <number>"
         match = re.search(r'de\s+la\s+zone\s+(\d+)', query_text)
+        if match:
+            return int(match.group(1))
+        
+        # Pattern: "de zone <number>"
+        match = re.search(r'de\s+zone\s+(\d+)', query_text)
         if match:
             return int(match.group(1))
         

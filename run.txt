@@ -1,0 +1,3 @@
+python -m api.main
+cd frontend 
+npm run dev 

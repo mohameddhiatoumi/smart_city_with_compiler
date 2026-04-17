@@ -2,7 +2,17 @@
 Grammar definitions and keyword mappings for NL to SQL compilation
 Defines French language patterns and their SQL equivalents
 """
-
+SENSOR_TYPE_VALUES = {
+    'air': ['air', 'pm2.5', 'pm10', 'co2', 'no2'],
+    'bruit': ['bruit', 'db', 'décibel', 'decibel'],
+    'trafic': ['trafic', 'vehicules', 'débit', 'debit'],
+}
+TIME_PERIODS = {
+    'this_month': ['ce mois', 'ce mois-ci', 'mois courant'],
+    'this_week': ['cette semaine', 'semaine courante', 'cette semaine-ci'],
+    'today': ['aujourd hui', 'aujourd\'hui', 'aujourd hui', 'ce jour'],
+    'recently': ['récemment', 'recemment', 'derniers jours', 'dernier mois'],
+}
 # Query intent keywords
 INTENT_KEYWORDS = {
     'select': ['affiche', 'montre', 'liste', 'donne', 'trouve', 'quels', 'quelles', 'combien'],
@@ -51,10 +61,10 @@ ATTRIBUTE_MAPPINGS = {
 # Status values
 STATUS_VALUES = {
     'hors_service': ['hors_service', 'hors service', 'hs', 'cassé', 'cassés'],
-    'actif': ['actif', 'actifs', 'active', 'actives', 'fonctionnel','niggas'],
+    'actif': ['actif', 'actifs', 'active', 'actives', 'fonctionnel'],
     'signale': ['signalé', 'signalés', 'signale', 'alerte', 'problème'],
     'en_maintenance': ['en_maintenance', 'en maintenance', 'maintenance'],
-    'inactif': ['inactif', 'inactifs', 'inactive','hello'],
+    'inactif': ['inactif', 'inactifs', 'inactive', 'inactives'],
 }
 
 # Comparison operators

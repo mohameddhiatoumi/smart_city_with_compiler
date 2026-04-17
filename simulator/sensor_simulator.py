@@ -5,13 +5,12 @@ Continuously generates realistic measurements with anomaly detection
 
 import sys
 import os
+sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 import time
 import signal
 from datetime import datetime
 from threading import Thread, Event
-from compiler import NLQueryCompiler, CompilationError  # ✅ This will now work
-from database.db_utils import execute_query
-# Add parent directory to path for imports
+from compiler import NLQueryCompiler, CompilationError
 sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
 from database.db_utils import get_connection
