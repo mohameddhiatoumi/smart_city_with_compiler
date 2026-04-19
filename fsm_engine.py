@@ -9,6 +9,7 @@ from dataclasses import dataclass
 from datetime import datetime
 import sqlite3
 import json
+import time 
 
 
 class FSMError(Exception):
@@ -176,7 +177,7 @@ class SensorEvent(str, Enum):
     REACTIVER = "reactiver"
 
 
-def create_sensor_fsm(db_path: str, capteur_id: int) -> StateMachine:
+def create_sensor_fsm(db_path: str, capteur_id: str) -> StateMachine:
     """Create a sensor lifecycle FSM"""
     
     def update_sensor_status(context: Dict[str, Any]) -> None:
@@ -412,53 +413,91 @@ class VehicleEvent(str, Enum):
     STATIONNER = "stationner"
 
 
-def create_vehicle_fsm(db_path: str, vehicule_id: int) -> StateMachine:
+def create_vehicle_fsm(db_path: str, vehicule_id: str) -> StateMachine:  # ✅ Changed to str
     """Create a vehicle journey FSM"""
     
     def update_vehicle_status(context: Dict[str, Any]) -> None:
-        """Update vehicle status in database"""
-        conn = sqlite3.connect(db_path)
-        cursor = conn.cursor()
-        cursor.execute(
-            "UPDATE vehicules SET statut = ? WHERE vehicule_id = ?",
-            (context['new_status'], context['vehicule_id'])
-        )
-        conn.commit()
-        conn.close()
+        """Update vehicle status in database with retry logic"""
+        max_retries = 3
+        retry_delay = 0.1
+        
+        for attempt in range(max_retries):
+            try:
+                conn = sqlite3.connect(db_path, timeout=10)  # ✅ Add timeout
+                cursor = conn.cursor()
+                cursor.execute(
+                    "UPDATE vehicules SET statut = ? WHERE vehicule_id = ?",
+                    (context['new_status'], context['vehicule_id'])
+                )
+                conn.commit()
+                conn.close()
+                return  # Success
+            except sqlite3.OperationalError as e:
+                if "database is locked" in str(e) and attempt < max_retries - 1:
+                    time.sleep(retry_delay)
+                    retry_delay *= 2  # Exponential backoff
+                else:
+                    raise
     
     def create_trajet(context: Dict[str, Any]) -> None:
         """Create journey record when vehicle starts"""
-        conn = sqlite3.connect(db_path)
-        cursor = conn.cursor()
-        cursor.execute(
-            """INSERT INTO trajets (vehicule_id, zone_depart_id, timestamp_depart)
-               VALUES (?, ?, datetime('now'))""",
-            (context['vehicule_id'], context.get('zone_depart_id'))
-        )
-        conn.commit()
-        conn.close()
+        max_retries = 3
+        retry_delay = 0.1
+        
+        for attempt in range(max_retries):
+            try:
+                conn = sqlite3.connect(db_path, timeout=10)  # ✅ Add timeout
+                cursor = conn.cursor()
+                cursor.execute(
+                    """INSERT INTO trajets (vehicule_id, zone_depart_id, timestamp_depart, statut)
+                    VALUES (?, ?, datetime('now'), 'en_cours')""",
+                    (context['vehicule_id'], context.get('zone_depart_id'))
+                )
+                conn.commit()
+                conn.close()
+                return  # Success
+            except sqlite3.OperationalError as e:
+                if "database is locked" in str(e) and attempt < max_retries - 1:
+                    time.sleep(retry_delay)
+                    retry_delay *= 2
+                else:
+                    print(f"Error creating trajet: {e}")
+                    return
     
     def complete_trajet(context: Dict[str, Any]) -> None:
         """Complete journey record when vehicle arrives"""
-        conn = sqlite3.connect(db_path)
-        cursor = conn.cursor()
+        max_retries = 3
+        retry_delay = 0.1
         
-        # Get the latest incomplete journey
-        cursor.execute(
-            """UPDATE trajets 
-               SET zone_arrivee_id = ?, 
-                   timestamp_arrivee = datetime('now'),
-                   distance_km = ?,
-                   economie_co2 = ?
-               WHERE vehicule_id = ? 
-               AND timestamp_arrivee IS NULL
-               ORDER BY timestamp_depart DESC
-               LIMIT 1""",
-            (context.get('zone_arrivee_id'), context.get('distance_km', 0),
-             context.get('economie_co2', 0), context['vehicule_id'])
-        )
-        conn.commit()
-        conn.close()
+        for attempt in range(max_retries):
+            try:
+                conn = sqlite3.connect(db_path, timeout=10)  # ✅ Add timeout
+                cursor = conn.cursor()
+                
+                cursor.execute(
+                    """UPDATE trajets 
+                    SET zone_arrivee_id = ?, 
+                        timestamp_arrivee = datetime('now'),
+                        distance_km = ?,
+                        economie_co2 = ?,
+                        statut = 'termine'
+                    WHERE vehicule_id = ? 
+                    AND timestamp_arrivee IS NULL
+                    ORDER BY timestamp_depart DESC
+                    LIMIT 1""",
+                    (context.get('zone_arrivee_id'), context.get('distance_km', 0),
+                    context.get('economie_co2', 0), context['vehicule_id'])
+                )
+                conn.commit()
+                conn.close()
+                return  # Success
+            except sqlite3.OperationalError as e:
+                if "database is locked" in str(e) and attempt < max_retries - 1:
+                    time.sleep(retry_delay)
+                    retry_delay *= 2
+                else:
+                    print(f"Error completing trajet: {e}")
+                    return
     
     # Create FSM
     fsm = StateMachine(name=f"Vehicle_{vehicule_id}", initial_state=VehicleState.STATIONNE)
@@ -506,7 +545,6 @@ def create_vehicle_fsm(db_path: str, vehicule_id: int) -> StateMachine:
     
     return fsm
 
-
 # ============================================================================
 # FSM MANAGER
 # ============================================================================
@@ -520,7 +558,7 @@ class FSMManager:
         self.intervention_fsms: Dict[int, StateMachine] = {}
         self.vehicle_fsms: Dict[int, StateMachine] = {}
     
-    def get_sensor_fsm(self, capteur_id: int, current_status: str = None) -> StateMachine:
+    def get_sensor_fsm(self, capteur_id: str, current_status: str = None) -> StateMachine:  # ✅ Changed to str
         """Get or create FSM for a sensor"""
         if capteur_id not in self.sensor_fsms:
             fsm = create_sensor_fsm(self.db_path, capteur_id)
@@ -537,6 +575,9 @@ class FSMManager:
                 conn.close()
                 if result:
                     fsm.current_state = result[0]
+                else:
+                    # If sensor doesn't exist, initialize to INACTIF
+                    fsm.current_state = SensorState.INACTIF.value
             
             self.sensor_fsms[capteur_id] = fsm
         
@@ -557,31 +598,36 @@ class FSMManager:
                 conn.close()
                 if result:
                     fsm.current_state = result[0]
+                else:
+                    # If intervention doesn't exist, initialize to DEMANDE
+                    fsm.current_state = InterventionState.DEMANDE.value
             
             self.intervention_fsms[intervention_id] = fsm
         
         return self.intervention_fsms[intervention_id]
     
-    def get_vehicle_fsm(self, vehicule_id: int, current_status: str = None) -> StateMachine:
+    def get_vehicle_fsm(self, vehicule_id: int, current_status: str = None) -> StateMachine:  # ✅ Keep as int for now
         """Get or create FSM for a vehicle"""
         if vehicule_id not in self.vehicle_fsms:
-            fsm = create_vehicle_fsm(self.db_path, vehicule_id)
+            fsm = create_vehicle_fsm(self.db_path, str(vehicule_id))  # ✅ Convert to str
             
             if current_status:
                 fsm.current_state = current_status
             else:
                 conn = sqlite3.connect(self.db_path)
                 cursor = conn.cursor()
-                cursor.execute("SELECT statut FROM vehicules WHERE vehicule_id = ?", (vehicule_id,))
+                cursor.execute("SELECT statut FROM vehicules WHERE vehicule_id = ?", (str(vehicule_id),))  # ✅ Convert to str
                 result = cursor.fetchone()
                 conn.close()
                 if result:
                     fsm.current_state = result[0]
+                else:
+                    # If vehicle doesn't exist, initialize to STATIONNE
+                    fsm.current_state = VehicleState.STATIONNE.value
             
             self.vehicle_fsms[vehicule_id] = fsm
         
         return self.vehicle_fsms[vehicule_id]
-    
     def trigger_sensor_event(self, capteur_id: int, event: str, context: Dict[str, Any] = None) -> str:
         """Trigger event on sensor FSM"""
         if context is None:
@@ -600,13 +646,19 @@ class FSMManager:
         fsm = self.get_intervention_fsm(intervention_id)
         return fsm.trigger(event, context)
     
-    def trigger_vehicle_event(self, vehicule_id: int, event: str, context: Dict[str, Any] = None) -> str:
+    def trigger_vehicle_event(self, vehicule_id, event: str, context: Dict[str, Any] = None) -> str:
         """Trigger event on vehicle FSM"""
         if context is None:
             context = {}
         context['vehicule_id'] = vehicule_id
         
-        fsm = self.get_vehicle_fsm(vehicule_id)
+        # Convert to int for FSM cache key if it's numeric, otherwise use as-is
+        try:
+            cache_key = int(vehicule_id)
+        except:
+            cache_key = vehicule_id
+        
+        fsm = self.get_vehicle_fsm(cache_key)
         return fsm.trigger(event, context)
 
 

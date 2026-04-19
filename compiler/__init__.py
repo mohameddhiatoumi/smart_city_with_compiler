@@ -5,4 +5,4 @@ Translates French queries into SQL statements
 
 from .compiler import NLQueryCompiler
 
-__all__ = ['NLQueryCompiler']
+__all__ = ['NLQueryCompiler', 'CompilationError']

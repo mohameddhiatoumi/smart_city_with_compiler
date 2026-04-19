@@ -9,35 +9,36 @@ from pathlib import Path
 PROJECT_ROOT = Path(__file__).parent.parent
 
 # Simulation timing
-MEASUREMENT_INTERVAL_SECONDS = 15 # How often to generate measurements (60 = every minute)
+MEASUREMENT_INTERVAL_SECONDS = 10   # How often to generate measurements (5 seconds for faster data)
 SIMULATION_SPEED_MULTIPLIER = 1    # Set to 60 for 1-hour simulation in 1 minute (testing mode)
 
 # Anomaly detection
-ANOMALY_PROBABILITY = 0.01         # 1% chance of anomaly per measurement
+ANOMALY_PROBABILITY = 0.03         # 3% chance of anomaly per measurement (increased from 1%)
 ERROR_RATE_THRESHOLD = 15.0        # % error rate to trigger 'signale' status
 AUTO_CREATE_INTERVENTIONS = True   # Automatically create interventions for faulty sensors
 
-# Measurement variation ranges
+# Measurement variation ranges - MUCH LARGER for visible changes
 NORMAL_VARIATION = {
-    'PM2.5': {'min_change': -6, 'max_change': 3},
-    'PM10': {'min_change': -7, 'max_change': 5},
-    'CO2': {'min_change': -12, 'max_change': 10},
-    'NO2': {'min_change': -7, 'max_change': 5},
-    'temperature': {'min_change': -3, 'max_change': 1},
-    'humidite': {'min_change': -5, 'max_change': 3},
-    'bruit_db': {'min_change': -6, 'max_change': 5},
-    'debit_vehicules': {'min_change': -22, 'max_change': 20}
+    'PM2.5': {'min_change': -15, 'max_change': 12},        # Increased from -6 to 3
+    'PM10': {'min_change': -18, 'max_change': 15},         # Increased from -7 to 5
+    'CO2': {'min_change': -30, 'max_change': 25},          # Increased from -12 to 10
+    'NO2': {'min_change': -18, 'max_change': 15},          # Increased from -7 to 5
+    'temperature': {'min_change': -2.5, 'max_change': 2},  # Increased from -3 to 1
+    'humidite': {'min_change': -8, 'max_change': 6},       # Increased from -5 to 3
+    'bruit_db': {'min_change': -12, 'max_change': 10},     # Increased from -6 to 5
+    'debit_vehicules': {'min_change': -50, 'max_change': 45}  # Increased from -22 to 20
 }
 
+# ANOMALY_VARIATION - Large spikes (30-50% changes)
 ANOMALY_VARIATION = {
-    'PM2.5': {'min_change': -88, 'max_change': 120},
-    'PM10': {'min_change': -120, 'max_change': 150},
-    'CO2': {'min_change': -220, 'max_change': 300},
-    'NO2': {'min_change': -70, 'max_change': 100},
-    'temperature': {'min_change': -20, 'max_change': 20},
-    'humidite': {'min_change': -40, 'max_change': 40},
-    'bruit_db': {'min_change': -35, 'max_change': 50},
-    'debit_vehicules': {'min_change': -200, 'max_change': 250}
+    'PM2.5': {'min_change': -50, 'max_change': 80},        # Smaller anomalies for visible spikes
+    'PM10': {'min_change': -70, 'max_change': 100},
+    'CO2': {'min_change': -150, 'max_change': 200},
+    'NO2': {'min_change': -50, 'max_change': 80},
+    'temperature': {'min_change': -15, 'max_change': 15},
+    'humidite': {'min_change': -30, 'max_change': 30},
+    'bruit_db': {'min_change': -25, 'max_change': 35},
+    'debit_vehicules': {'min_change': -150, 'max_change': 200}
 }
 
 # Measurement baselines (reset point if value goes out of reasonable bounds)

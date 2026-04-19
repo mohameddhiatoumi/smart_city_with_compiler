@@ -10,7 +10,7 @@ import time
 import signal
 from datetime import datetime
 from threading import Thread, Event
-from compiler import NLQueryCompiler, CompilationError
+from compiler import NLQueryCompiler
 sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
 from database.db_utils import get_connection
@@ -94,7 +94,7 @@ class SensorSimulator:
         
         for measure_type in measure_types:
             last_value = sensor_data['last_values'][measure_type]
-            new_value, is_anomaly = generate_next_value(measure_type, last_value)
+            new_value, is_anomaly = generate_next_value(sensor_id, measure_type, last_value)
             
             # Update last value
             sensor_data['last_values'][measure_type] = new_value

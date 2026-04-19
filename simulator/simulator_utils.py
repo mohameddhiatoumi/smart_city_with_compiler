@@ -1,6 +1,6 @@
 """
 Utility functions for realistic sensor data generation
-Handles diurnal patterns, value constraints, and anomaly generation
+Handles diurnal patterns, value constraints, and anomaly generation with momentum
 """
 
 import random
@@ -9,6 +9,9 @@ from simulator_config import (
     NORMAL_VARIATION, ANOMALY_VARIATION, MEASUREMENT_BASELINES,
     TRAFFIC_PATTERN, POLLUTION_PATTERN, ANOMALY_PROBABILITY
 )
+
+# Global momentum tracker: {sensor_id: {measure_type: {'direction': 1 or -1, 'cycles': 0}}}
+MOMENTUM_TRACKER = {}
 
 
 def get_diurnal_multiplier(measure_type, current_hour=None):
@@ -34,11 +37,60 @@ def get_diurnal_multiplier(measure_type, current_hour=None):
         return 1.0  # No pattern for temperature, humidity, noise
 
 
-def generate_next_value(measure_type, last_value, force_anomaly=False):
+def update_momentum(sensor_id, measure_type, change_direction):
     """
-    Generate next measurement value based on last value
+    Track momentum for smooth trending patterns
     
     Args:
+        sensor_id: ID of the sensor
+        measure_type: Type of measurement
+        change_direction: 1 for up, -1 for down
+    """
+    key = f"{sensor_id}:{measure_type}"
+    
+    if key not in MOMENTUM_TRACKER:
+        MOMENTUM_TRACKER[key] = {'direction': change_direction, 'cycles': 1}
+    else:
+        momentum = MOMENTUM_TRACKER[key]
+        
+        if momentum['direction'] == change_direction:
+            # Continue in same direction
+            momentum['cycles'] += 1
+            # Cap at 5 cycles to avoid infinite trends
+            if momentum['cycles'] > 5:
+                momentum['direction'] = -change_direction
+                momentum['cycles'] = 1
+        else:
+            # Switch direction
+            momentum['direction'] = change_direction
+            momentum['cycles'] = 1
+
+
+def get_momentum_factor(sensor_id, measure_type):
+    """
+    Get momentum multiplier for smooth trending
+    
+    Returns:
+        Factor to apply to change (0.5 to 1.5)
+    """
+    key = f"{sensor_id}:{measure_type}"
+    
+    if key not in MOMENTUM_TRACKER:
+        return 1.0
+    
+    momentum = MOMENTUM_TRACKER[key]
+    cycles = momentum['cycles']
+    
+    # Increase magnitude over time: 1.0 → 1.5 over 5 cycles
+    return 1.0 + (cycles / 10.0)
+
+
+def generate_next_value(sensor_id, measure_type, last_value, force_anomaly=False):
+    """
+    Generate next measurement value based on last value with momentum tracking
+    
+    Args:
+        sensor_id: ID of the sensor
         measure_type: Type of measurement
         last_value: Previous measurement value
         force_anomaly: Force an anomaly (for testing)
@@ -47,6 +99,7 @@ def generate_next_value(measure_type, last_value, force_anomaly=False):
         Tuple of (new_value, is_anomaly)
     """
     config = MEASUREMENT_BASELINES[measure_type]
+    baseline = config['baseline']
     
     # Determine if this is an anomaly
     is_anomaly = force_anomaly or (random.random() < ANOMALY_PROBABILITY)
@@ -60,20 +113,30 @@ def generate_next_value(measure_type, last_value, force_anomaly=False):
     # Generate change
     change = random.uniform(variation['min_change'], variation['max_change'])
     
-    # Apply diurnal pattern to normal variations
+    # Apply momentum for smooth trends (normal variations only)
     if not is_anomaly:
+        momentum_factor = get_momentum_factor(sensor_id, measure_type)
+        change *= momentum_factor
+        
+        # Track momentum direction
+        change_direction = 1 if change > 0 else -1
+        update_momentum(sensor_id, measure_type, change_direction)
+        
+        # Apply diurnal pattern
         multiplier = get_diurnal_multiplier(measure_type)
         change *= multiplier
     
-    # Calculate new value
-    new_value = last_value + change
+    # Mean reversion: 75% trend, 25% back to baseline
+    MEAN_REVERSION_WEIGHT = 0.25
+    new_value = (1 - MEAN_REVERSION_WEIGHT) * (last_value + change) + \
+                MEAN_REVERSION_WEIGHT * baseline
     
-    # Enforce bounds (reset to baseline if out of range)
+    # Enforce bounds
     if new_value < config['min'] or new_value > config['max']:
-        new_value = config['baseline']
-        is_anomaly = True  # Mark as anomaly since we had to reset
+        new_value = baseline
+        is_anomaly = True
     
-    # Ensure non-negative for certain types
+    # Ensure non-negative
     if new_value < 0:
         new_value = 0
     
@@ -93,7 +156,7 @@ def get_initial_value(measure_type):
     config = MEASUREMENT_BASELINES[measure_type]
     
     # Start near baseline with some variation
-    variation = (config['max'] - config['min']) * 0.2
+    variation = (config['max'] - config['min']) * 0.15
     initial = config['baseline'] + random.uniform(-variation, variation)
     
     return max(config['min'], min(config['max'], initial))

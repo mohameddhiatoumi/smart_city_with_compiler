@@ -1,13 +1,17 @@
-import { useEffect, useState } from 'react';
+import { useState } from 'react';
+import { useEffect } from 'react';
 import LiveStats from './LiveStats';
 import NLQueryInterface from './NLQueryInterface';
 import PollutionChart from './PollutionChart';
 import SensorCard from './SensorCard';
+import SensorMap from './SensorMap';  // ← ADD THIS IMPORT
+import FSMDashboard from './fsm/FSMDashboard';
 import { getAllSensors } from '../services/api';
 
 const Dashboard = () => {
   const [sensors, setSensors] = useState([]);
   const [loading, setLoading] = useState(true);
+  const [showFSM, setShowFSM] = useState(false);
 
   useEffect(() => {
     const fetchSensors = async () => {
@@ -26,14 +30,24 @@ const Dashboard = () => {
     return () => clearInterval(interval);
   }, []);
 
+  if (showFSM) {
+    return <FSMDashboard onClose={() => setShowFSM(false)} />;
+  }
+
   return (
     <div className="min-h-screen bg-gray-50">
       {/* Header */}
       <header className="bg-white shadow-sm">
-        <div className="max-w-7xl mx-auto px-4 py-6">
+        <div className="max-w-7xl mx-auto px-4 py-6 flex items-center justify-between">
           <h1 className="text-3xl font-bold text-gray-900">
             🌆 Neo-Sousse 2030 - Smart City Dashboard
           </h1>
+          <button
+            onClick={() => setShowFSM(true)}
+            className="px-6 py-2 bg-indigo-600 hover:bg-indigo-700 text-white font-medium rounded-lg transition-colors flex items-center gap-2"
+          >
+            🤖 FSM Dashboard
+          </button>
         </div>
       </header>
 
@@ -44,6 +58,9 @@ const Dashboard = () => {
 
         {/* Natural Language Query Interface */}
         <NLQueryInterface />
+
+        {/* Sensor Map - ADDED HERE */}
+        <SensorMap />
 
         {/* Pollution Chart */}
         <PollutionChart />

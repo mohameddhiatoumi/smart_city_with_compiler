@@ -42,7 +42,7 @@ class VehicleEventRequest(BaseModel):
 
 # Response models
 class FSMStateResponse(BaseModel):
-    entity_id: int
+    entity_id: str | int  # ✅ Changed from int to str
     entity_type: str
     current_state: str
     valid_transitions: List[str]
@@ -60,7 +60,7 @@ class TransitionResponse(BaseModel):
 # ============================================================================
 
 @router.get("/sensors/{capteur_id}/state", response_model=FSMStateResponse)
-async def get_sensor_state(capteur_id: int):
+async def get_sensor_state(capteur_id: str):  # ✅ Changed from int to str
     """Get current state and valid transitions for a sensor"""
     if fsm_manager is None:
         raise HTTPException(status_code=500, detail="FSM manager not initialized")
@@ -81,7 +81,7 @@ async def get_sensor_state(capteur_id: int):
 
 
 @router.post("/sensors/{capteur_id}/trigger", response_model=TransitionResponse)
-async def trigger_sensor_event(capteur_id: int, request: SensorEventRequest):
+async def trigger_sensor_event(capteur_id: str, request: SensorEventRequest):  # ✅ Changed from int to str
     """Trigger an event on a sensor FSM"""
     if fsm_manager is None:
         raise HTTPException(status_code=500, detail="FSM manager not initialized")
@@ -105,7 +105,7 @@ async def trigger_sensor_event(capteur_id: int, request: SensorEventRequest):
 
 
 @router.get("/sensors/{capteur_id}/diagram")
-async def get_sensor_diagram(capteur_id: int):
+async def get_sensor_diagram(capteur_id: str):  # ✅ Changed from int to str
     """Get textual FSM diagram for a sensor"""
     if fsm_manager is None:
         raise HTTPException(status_code=500, detail="FSM manager not initialized")
@@ -116,18 +116,18 @@ async def get_sensor_diagram(capteur_id: int):
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
 
-
 # ============================================================================
 # INTERVENTION FSM ROUTES
 # ============================================================================
 
 @router.get("/interventions/{intervention_id}/state", response_model=FSMStateResponse)
-async def get_intervention_state(intervention_id: int):
+async def get_intervention_state(intervention_id: str):  # ✅ Changed from int to str
     """Get current state and valid transitions for an intervention"""
     if fsm_manager is None:
         raise HTTPException(status_code=500, detail="FSM manager not initialized")
     
     try:
+        intervention_id = int(intervention_id)  # ✅ Convert to int for DB lookup
         fsm = fsm_manager.get_intervention_fsm(intervention_id)
         valid_transitions = [t.event for t in fsm.get_valid_transitions({'intervention_id': intervention_id})]
         
@@ -138,17 +138,20 @@ async def get_intervention_state(intervention_id: int):
             valid_transitions=valid_transitions,
             history=fsm.history[-10:]
         )
+    except ValueError:
+        raise HTTPException(status_code=400, detail="Invalid intervention ID format")
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
 
 
 @router.post("/interventions/{intervention_id}/trigger", response_model=TransitionResponse)
-async def trigger_intervention_event(intervention_id: int, request: InterventionEventRequest):
+async def trigger_intervention_event(intervention_id: str, request: InterventionEventRequest):  # ✅ Changed from int to str
     """Trigger an event on an intervention FSM"""
     if fsm_manager is None:
         raise HTTPException(status_code=500, detail="FSM manager not initialized")
     
     try:
+        intervention_id = int(intervention_id)  # ✅ Convert to int for DB lookup
         new_state = fsm_manager.trigger_intervention_event(
             intervention_id,
             request.event,
@@ -160,6 +163,8 @@ async def trigger_intervention_event(intervention_id: int, request: Intervention
             new_state=new_state,
             message=f"Intervention {intervention_id} transitioned to {new_state}"
         )
+    except ValueError:
+        raise HTTPException(status_code=400, detail="Invalid intervention ID format")
     except InvalidTransitionError as e:
         raise HTTPException(status_code=400, detail=str(e))
     except FSMError as e:
@@ -167,14 +172,17 @@ async def trigger_intervention_event(intervention_id: int, request: Intervention
 
 
 @router.get("/interventions/{intervention_id}/diagram")
-async def get_intervention_diagram(intervention_id: int):
+async def get_intervention_diagram(intervention_id: str):  # ✅ Changed from int to str
     """Get textual FSM diagram for an intervention"""
     if fsm_manager is None:
         raise HTTPException(status_code=500, detail="FSM manager not initialized")
     
     try:
+        intervention_id = int(intervention_id)  # ✅ Convert to int for DB lookup
         fsm = fsm_manager.get_intervention_fsm(intervention_id)
         return {"diagram": fsm.get_state_diagram()}
+    except ValueError:
+        raise HTTPException(status_code=400, detail="Invalid intervention ID format")
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
 
@@ -184,12 +192,13 @@ async def get_intervention_diagram(intervention_id: int):
 # ============================================================================
 
 @router.get("/vehicles/{vehicule_id}/state", response_model=FSMStateResponse)
-async def get_vehicle_state(vehicule_id: int):
+async def get_vehicle_state(vehicule_id: str):  # ✅ Changed from int to str
     """Get current state and valid transitions for a vehicle"""
     if fsm_manager is None:
         raise HTTPException(status_code=500, detail="FSM manager not initialized")
     
     try:
+        vehicule_id = int(vehicule_id)  # ✅ Convert to int for DB lookup
         fsm = fsm_manager.get_vehicle_fsm(vehicule_id)
         valid_transitions = [t.event for t in fsm.get_valid_transitions({'vehicule_id': vehicule_id})]
         
@@ -200,19 +209,22 @@ async def get_vehicle_state(vehicule_id: int):
             valid_transitions=valid_transitions,
             history=fsm.history[-10:]
         )
+    except ValueError:
+        raise HTTPException(status_code=400, detail="Invalid vehicle ID format")
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
 
 
 @router.post("/vehicles/{vehicule_id}/trigger", response_model=TransitionResponse)
-async def trigger_vehicle_event(vehicule_id: int, request: VehicleEventRequest):
+async def trigger_vehicle_event(vehicule_id: str, request: VehicleEventRequest):  # ✅ Keep as str
     """Trigger an event on a vehicle FSM"""
     if fsm_manager is None:
         raise HTTPException(status_code=500, detail="FSM manager not initialized")
     
     try:
+        # Don't convert - keep as string if vehicles use VARCHAR IDs
         new_state = fsm_manager.trigger_vehicle_event(
-            vehicule_id,
+            vehicule_id,  # ✅ Pass as-is
             request.event,
             request.context
         )
@@ -226,20 +238,24 @@ async def trigger_vehicle_event(vehicule_id: int, request: VehicleEventRequest):
         raise HTTPException(status_code=400, detail=str(e))
     except FSMError as e:
         raise HTTPException(status_code=500, detail=str(e))
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
 
 
 @router.get("/vehicles/{vehicule_id}/diagram")
-async def get_vehicle_diagram(vehicule_id: int):
+async def get_vehicle_diagram(vehicule_id: str):  # ✅ Changed from int to str
     """Get textual FSM diagram for a vehicle"""
     if fsm_manager is None:
         raise HTTPException(status_code=500, detail="FSM manager not initialized")
     
     try:
+        vehicule_id = int(vehicule_id)  # ✅ Convert to int for DB lookup
         fsm = fsm_manager.get_vehicle_fsm(vehicule_id)
         return {"diagram": fsm.get_state_diagram()}
+    except ValueError:
+        raise HTTPException(status_code=400, detail="Invalid vehicle ID format")
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
-
 
 # ============================================================================
 # UTILITY ROUTES

@@ -45,19 +45,21 @@ export const getZonePollution = async (zoneId, pollutant = 'PM2.5') => {
   return response.data;
 };
 
+
 // Recent Measurements - FIXED
 export const getRecentMeasurements = async (limit = 100) => {
   try {
-    const sensors = await getAllSensors();
-    if (!sensors || sensors.length === 0) return [];
-    
-    const capteur_id = sensors[0].capteur_id;
-    const response = await api.get(`/sensors/${capteur_id}/measurements`, {
-      params: { hours: 24, limit }
+    console.log('📡 Fetching recent measurements from all sensors...');
+    const response = await api.get('/sensors/measurements/recent-all', {
+      params: { 
+        hours: 24,    // 
+        limit: 500   // ← INCREASE limit to get more points
+      }
     });
-    return response.data;
+    console.log(`✅ Received ${response.data?.length || 0} measurements`);
+    return response.data || [];
   } catch (error) {
-    console.error('Error fetching measurements:', error);
+    console.error('❌ Error fetching recent measurements:', error);
     return [];
   }
 };

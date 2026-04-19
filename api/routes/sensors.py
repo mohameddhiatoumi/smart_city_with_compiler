@@ -17,7 +17,69 @@ from api.config import DEFAULT_PAGE_SIZE, DEFAULT_TIME_RANGE_HOURS
 
 router = APIRouter(prefix="/sensors", tags=["Sensors"])
 
-
+@router.get("/measurements/recent-all")
+async def get_all_recent_measurements(
+    hours: int = Query(24, ge=1, le=168),
+    limit: int = Query(100, ge=1, le=1000)
+):
+    """
+    Get recent measurements from ALL active sensors
+    This is the endpoint the frontend PollutionChart uses
+    """
+    try:
+        # Calculate time threshold as string (SQLite stores timestamps as strings)
+        time_threshold = datetime.now() - timedelta(hours=hours)
+        time_threshold_str = time_threshold.strftime('%Y-%m-%d %H:%M:%S')
+        
+        print(f"🔍 DEBUG: Time threshold: {time_threshold_str}")
+        print(f"🔍 DEBUG: Limit: {limit}")
+        
+        # Query for recent measurements
+        query = """
+            SELECT 
+                mesure_id, 
+                capteur_id, 
+                timestamp, 
+                type_mesure, 
+                valeur, 
+                unite, 
+                est_anomalie
+            FROM mesures
+            WHERE timestamp >= ?
+            AND capteur_id IN (
+                SELECT capteur_id FROM capteurs 
+                WHERE statut IN ('actif', 'signale')
+            )
+            ORDER BY timestamp DESC
+            LIMIT ?
+        """
+        
+        results = execute_query(query, (time_threshold_str, limit))
+        
+        print(f"🔍 DEBUG: Query returned {len(results) if results else 0} results")
+        
+        # Convert sqlite3.Row objects to dictionaries properly
+        data = []
+        for row in results:
+            data.append({
+                'mesure_id': row['mesure_id'],
+                'capteur_id': row['capteur_id'],
+                'timestamp': row['timestamp'],
+                'type_mesure': row['type_mesure'],
+                'valeur': float(row['valeur']),  # Ensure it's a float
+                'unite': row['unite'],
+                'est_anomalie': row['est_anomalie']
+            })
+        
+        print(f"✅ Returning {len(data)} measurements")
+        return data
+    
+    except Exception as e:
+        print(f"❌ ERROR: {str(e)}")
+        import traceback
+        traceback.print_exc()
+        raise HTTPException(status_code=500, detail=str(e))
+    
 @router.get("/", response_model=List[SensorBase])
 async def list_sensors(
     type_capteur: Optional[str] = None,
@@ -65,6 +127,7 @@ async def get_sensor(capteur_id: str):
     return dict(results[0])
 
 
+    
 @router.get("/{capteur_id}/measurements", response_model=List[MeasurementBase])
 async def get_sensor_measurements(
     capteur_id: str,
