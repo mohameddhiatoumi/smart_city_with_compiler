@@ -2,3 +2,4 @@ python -m api.main
 cd frontend 
 npm run dev 
 api key :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
+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

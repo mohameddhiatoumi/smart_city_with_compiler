@@ -9,19 +9,25 @@ const api = axios.create({
   },
 });
 
-// Natural Language Query
+// ============================================================
+// NATURAL LANGUAGE QUERY
+// ============================================================
 export const executeNLQuery = async (query) => {
   const response = await api.post(`/query?query=${encodeURIComponent(query)}`);
   return response.data;
 };
 
-// Dashboard Stats
+// ============================================================
+// DASHBOARD STATS
+// ============================================================
 export const getDashboardStats = async () => {
   const response = await api.get('/dashboard/stats');
   return response.data;
 };
 
-// Sensors
+// ============================================================
+// SENSORS
+// ============================================================
 export const getAllSensors = async () => {
   const response = await api.get('/sensors');
   return response.data;
@@ -32,7 +38,6 @@ export const getSensorById = async (sensorId) => {
   return response.data;
 };
 
-// ← NEW: Get sensor latest measurements
 export const getSensorLatestMeasurements = async (sensorId) => {
   try {
     const response = await api.get(`/sensors/${sensorId}/latest`);
@@ -43,7 +48,9 @@ export const getSensorLatestMeasurements = async (sensorId) => {
   }
 };
 
-// Zones
+// ============================================================
+// ZONES
+// ============================================================
 export const getAllZones = async () => {
   const response = await api.get('/zones');
   return response.data;
@@ -56,7 +63,9 @@ export const getZonePollution = async (zoneId, pollutant = 'PM2.5') => {
   return response.data;
 };
 
-// Recent Measurements
+// ============================================================
+// MEASUREMENTS
+// ============================================================
 export const getRecentMeasurements = async (limit = 100) => {
   try {
     console.log('📡 Fetching recent measurements from all sensors...');
@@ -71,6 +80,61 @@ export const getRecentMeasurements = async (limit = 100) => {
   } catch (error) {
     console.error('❌ Error fetching recent measurements:', error);
     return [];
+  }
+};
+
+// ============================================================
+// AI REPORTS - NEW FUNCTIONS
+// ============================================================
+export const getAirQualityReport = async (zoneId = null, date = null) => {
+  try {
+    const params = new URLSearchParams();
+    if (zoneId) params.append('zone_id', zoneId);
+    if (date) params.append('date', date);
+    
+    const response = await api.get(`/ai/report/air-quality?${params}`);
+    return response.data;
+  } catch (error) {
+    console.error('Error fetching air quality report:', error);
+    throw error;
+  }
+};
+
+export const getSensorRecommendation = async (sensorId) => {
+  try {
+    const response = await api.get(`/ai/recommendation/sensor/${sensorId}`);
+    return response.data;
+  } catch (error) {
+    console.error('Error fetching sensor recommendation:', error);
+    throw error;
+  }
+};
+
+export const getTrafficAnalysis = async (zoneId = null) => {
+  try {
+    const params = new URLSearchParams();
+    if (zoneId) params.append('zone_id', zoneId);
+    
+    const response = await api.get(`/ai/analysis/traffic?${params}`);
+    return response.data;
+  } catch (error) {
+    console.error('Error fetching traffic analysis:', error);
+    throw error;
+  }
+};
+
+export const validateFSMTransition = async (entityType, currentState, proposedEvent, context = {}) => {
+  try {
+    const response = await api.post('/ai/validate-transition', {
+      entity_type: entityType,
+      current_state: currentState,
+      proposed_event: proposedEvent,
+      context: context
+    });
+    return response.data;
+  } catch (error) {
+    console.error('Error validating FSM transition:', error);
+    throw error;
   }
 };
 

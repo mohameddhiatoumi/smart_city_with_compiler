@@ -33,7 +33,7 @@ class AIGenerator:
             self.api_key = api_key or os.getenv("OPENROUTER_API_KEY") or os.getenv("OPENAI_API_KEY")
             self.base_url = "https://openrouter.ai/api/v1"
             # Use a free model from OpenRouter
-            self.model = "meta-llama/llama-3.2-3b-instruct:free"  # Free model!
+            self.model = "openrouter/auto"  # Free model!
             # Alternative free models you can try:
             # "google/gemma-2-9b-it:free"
             # "meta-llama/llama-3.1-8b-instruct:free"

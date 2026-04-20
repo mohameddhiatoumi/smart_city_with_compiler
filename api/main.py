@@ -6,8 +6,11 @@ Version 2.0 with FSM and AI modules integrated
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import RedirectResponse
+from dotenv import load_dotenv  # ← ADD THIS
+
 import os
 import sys
+load_dotenv() 
 
 # Get project root directory
 PROJECT_ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
@@ -19,7 +22,7 @@ from api.config import (
 )
 
 # Import existing routes
-from api.routes import sensors, zones, dashboard, query
+from api.routes import sensors, zones, dashboard, query, ai
 
 # Import FSM and AI routes (with error handling)
 FSM_AVAILABLE = False
@@ -46,9 +49,9 @@ DB_PATH = os.path.join(PROJECT_ROOT, "neo_sousse.db")
 
 # Create FastAPI app with updated metadata
 app = FastAPI(
-    title=API_TITLE,
-    version=API_VERSION,
-    description=f"{API_DESCRIPTION} - FSM & AI Enabled"
+    title="Neo-Sousse 2030 API",
+    description="Smart City Management System",
+    version="1.0.0"
 )
 
 # Configure CORS for React frontend
@@ -102,6 +105,7 @@ app.include_router(sensors.router)
 app.include_router(zones.router)
 app.include_router(dashboard.router)
 app.include_router(query.router)
+app.include_router(ai.router)
 
 # Include FSM and AI routers if available
 if FSM_AVAILABLE and fsm_router is not None:
