@@ -11344,3 +11344,130 @@
 2026-04-20 01:54:06 - SensorSimulator - INFO -    Total measurements: 16637
 2026-04-20 01:54:06 - SensorSimulator - INFO -    Total anomalies detected: 525
 2026-04-20 01:54:06 - SensorSimulator - INFO - ============================================================
+2026-04-20 02:08:07 - SensorSimulator - INFO - Loaded 45 active sensors
+2026-04-20 02:08:07 - SensorSimulator - INFO - ============================================================
+2026-04-20 02:08:07 - SensorSimulator - INFO - SENSOR SIMULATOR STARTED
+2026-04-20 02:08:07 - SensorSimulator - INFO -    Active sensors: 45
+2026-04-20 02:08:07 - SensorSimulator - INFO -    Measurement interval: 10 seconds
+2026-04-20 02:08:07 - SensorSimulator - INFO -    Anomaly probability: 1%
+2026-04-20 02:08:07 - SensorSimulator - INFO - ============================================================
+2026-04-20 02:08:07 - SensorSimulator - WARNING - ANOMALY: C-002 | temperature = 22.26 (ABNORMAL)
+2026-04-20 02:08:07 - SensorSimulator - WARNING - ANOMALY: C-011 | debit_vehicules = 217.50 (ABNORMAL)
+2026-04-20 02:08:07 - SensorSimulator - WARNING - ANOMALY: C-028 | CO2 = 365.46 (ABNORMAL)
+2026-04-20 02:08:07 - SensorSimulator - WARNING - ANOMALY: C-033 | PM2.5 = 25.11 (ABNORMAL)
+2026-04-20 02:08:07 - SensorSimulator - WARNING - ANOMALY: C-038 | temperature = 26.29 (ABNORMAL)
+2026-04-20 02:08:07 - SensorSimulator - WARNING - ANOMALY: C-053 | temperature = 6.86 (ABNORMAL)
+2026-04-20 02:08:17 - SensorSimulator - WARNING - ANOMALY: C-010 | debit_vehicules = 17.90 (ABNORMAL)
+2026-04-20 02:08:17 - SensorSimulator - WARNING - ANOMALY: C-017 | temperature = 20.89 (ABNORMAL)
+2026-04-20 02:08:17 - SensorSimulator - WARNING - ANOMALY: C-028 | PM2.5 = 76.00 (ABNORMAL)
+2026-04-20 02:08:17 - SensorSimulator - WARNING - ANOMALY: C-040 | NO2 = 87.19 (ABNORMAL)
+2026-04-20 02:08:17 - SensorSimulator - WARNING - ANOMALY: C-041 | PM2.5 = 4.94 (ABNORMAL)
+2026-04-20 02:08:17 - SensorSimulator - WARNING - ANOMALY: C-050 | PM2.5 = 45.70 (ABNORMAL)
+2026-04-20 02:08:17 - SensorSimulator - WARNING - ANOMALY: C-056 | CO2 = 363.39 (ABNORMAL)
+2026-04-20 02:08:27 - SensorSimulator - WARNING - ANOMALY: C-025 | debit_vehicules = 84.44 (ABNORMAL)
+2026-04-20 02:08:27 - SensorSimulator - WARNING - ANOMALY: C-041 | humidite = 81.43 (ABNORMAL)
+2026-04-20 02:08:37 - SensorSimulator - WARNING - ANOMALY: C-012 | NO2 = 0.24 (ABNORMAL)
+2026-04-20 02:08:37 - SensorSimulator - WARNING - ANOMALY: C-015 | PM10 = 118.52 (ABNORMAL)
+2026-04-20 02:08:37 - SensorSimulator - WARNING - ANOMALY: C-016 | humidite = 52.88 (ABNORMAL)
+2026-04-20 02:08:37 - SensorSimulator - WARNING - ANOMALY: C-040 | NO2 = 102.52 (ABNORMAL)
+2026-04-20 02:08:47 - SensorSimulator - WARNING - ANOMALY: C-011 | debit_vehicules = 67.12 (ABNORMAL)
+2026-04-20 02:08:47 - SensorSimulator - WARNING - ANOMALY: C-015 | CO2 = 342.23 (ABNORMAL)
+2026-04-20 02:08:47 - SensorSimulator - WARNING - ANOMALY: C-036 | PM10 = 72.74 (ABNORMAL)
+2026-04-20 02:08:47 - SensorSimulator - WARNING - ANOMALY: C-040 | humidite = 31.51 (ABNORMAL)
+2026-04-20 02:08:57 - SensorSimulator - WARNING - ANOMALY: C-019 | debit_vehicules = 224.98 (ABNORMAL)
+2026-04-20 02:08:57 - SensorSimulator - WARNING - ANOMALY: C-020 | debit_vehicules = 93.27 (ABNORMAL)
+2026-04-20 02:08:57 - SensorSimulator - WARNING - ANOMALY: C-056 | CO2 = 479.84 (ABNORMAL)
+2026-04-20 02:09:07 - SensorSimulator - WARNING - ANOMALY: C-015 | humidite = 76.14 (ABNORMAL)
+2026-04-20 02:09:07 - SensorSimulator - WARNING - ANOMALY: C-016 | humidite = 42.57 (ABNORMAL)
+2026-04-20 02:09:07 - SensorSimulator - WARNING - ANOMALY: C-051 | temperature = 29.54 (ABNORMAL)
+2026-04-20 02:09:07 - SensorSimulator - WARNING - ANOMALY: C-056 | PM2.5 = 80.64 (ABNORMAL)
+2026-04-20 02:09:17 - SensorSimulator - WARNING - ANOMALY: C-015 | temperature = 33.21 (ABNORMAL)
+2026-04-20 02:09:17 - SensorSimulator - WARNING - ANOMALY: C-028 | PM10 = 119.79 (ABNORMAL)
+2026-04-20 02:09:27 - SensorSimulator - WARNING - ANOMALY: C-028 | NO2 = 76.15 (ABNORMAL)
+2026-04-20 02:09:27 - SensorSimulator - WARNING - ANOMALY: C-030 | debit_vehicules = 167.26 (ABNORMAL)
+2026-04-20 02:09:27 - SensorSimulator - WARNING - ANOMALY: C-059 | temperature = 19.05 (ABNORMAL)
+2026-04-20 02:09:37 - SensorSimulator - WARNING - ANOMALY: C-012 | CO2 = 503.56 (ABNORMAL)
+2026-04-20 02:09:37 - SensorSimulator - WARNING - ANOMALY: C-052 | NO2 = 40.00 (ABNORMAL)
+2026-04-20 02:09:37 - SensorSimulator - WARNING - ANOMALY: C-053 | temperature = 17.44 (ABNORMAL)
+2026-04-20 02:09:47 - SensorSimulator - WARNING - ANOMALY: C-004 | bruit_db = 36.32 (ABNORMAL)
+2026-04-20 02:09:47 - SensorSimulator - WARNING - ANOMALY: C-012 | humidite = 39.81 (ABNORMAL)
+2026-04-20 02:09:47 - SensorSimulator - WARNING - ANOMALY: C-034 | temperature = 29.79 (ABNORMAL)
+2026-04-20 02:09:47 - SensorSimulator - WARNING - ANOMALY: C-041 | NO2 = 80.90 (ABNORMAL)
+2026-04-20 02:09:47 - SensorSimulator - WARNING - ANOMALY: C-053 | PM2.5 = 49.36 (ABNORMAL)
+2026-04-20 02:09:47 - SensorSimulator - WARNING - ANOMALY: C-056 | NO2 = 61.38 (ABNORMAL)
+2026-04-20 02:09:57 - SensorSimulator - WARNING - ANOMALY: C-002 | NO2 = 6.49 (ABNORMAL)
+2026-04-20 02:09:57 - SensorSimulator - WARNING - ANOMALY: C-004 | temperature = 20.39 (ABNORMAL)
+2026-04-20 02:09:57 - SensorSimulator - WARNING - ANOMALY: C-015 | PM2.5 = 37.40 (ABNORMAL)
+2026-04-20 02:09:57 - SensorSimulator - WARNING - ANOMALY: C-052 | temperature = 23.43 (ABNORMAL)
+2026-04-20 02:09:57 - SensorSimulator - WARNING - ANOMALY: C-058 | NO2 = 18.26 (ABNORMAL)
+2026-04-20 02:10:07 - SensorSimulator - WARNING - ANOMALY: C-016 | PM10 = 5.35 (ABNORMAL)
+2026-04-20 02:10:07 - SensorSimulator - WARNING - ANOMALY: C-017 | temperature = 28.27 (ABNORMAL)
+2026-04-20 02:10:07 - SensorSimulator - WARNING - ANOMALY: C-040 | PM10 = 5.86 (ABNORMAL)
+2026-04-20 02:10:07 - SensorSimulator - WARNING - ANOMALY: C-051 | humidite = 68.46 (ABNORMAL)
+2026-04-20 02:10:07 - SensorSimulator - WARNING - ANOMALY: C-055 | temperature = 29.33 (ABNORMAL)
+2026-04-20 02:10:17 - SensorSimulator - WARNING - ANOMALY: C-016 | temperature = 19.40 (ABNORMAL)
+2026-04-20 02:10:17 - SensorSimulator - WARNING - ANOMALY: C-033 | temperature = 28.61 (ABNORMAL)
+2026-04-20 02:10:17 - SensorSimulator - WARNING - ANOMALY: C-051 | CO2 = 349.27 (ABNORMAL)
+2026-04-20 02:10:17 - SensorSimulator - WARNING - ANOMALY: C-053 | PM2.5 = 68.46 (ABNORMAL)
+2026-04-20 02:10:17 - SensorSimulator - WARNING - ANOMALY: C-056 | temperature = 10.74 (ABNORMAL)
+2026-04-20 02:10:17 - SensorSimulator - WARNING - ANOMALY: C-058 | temperature = 18.12 (ABNORMAL)
+2026-04-20 02:10:17 - SensorSimulator - INFO - RECOVERY: C-044 | Good readings: 1/10 | Error: 4.96%
+2026-04-20 02:10:27 - SensorSimulator - WARNING - ANOMALY: C-035 | debit_vehicules = 173.75 (ABNORMAL)
+2026-04-20 02:10:27 - SensorSimulator - INFO - RECOVERY: C-044 | Good readings: 2/10 | Error: 4.93%
+2026-04-20 02:10:37 - SensorSimulator - WARNING - ANOMALY: C-019 | debit_vehicules = 120.28 (ABNORMAL)
+2026-04-20 02:10:37 - SensorSimulator - WARNING - ANOMALY: C-040 | PM10 = 50.00 (ABNORMAL)
+2026-04-20 02:10:37 - SensorSimulator - WARNING - ANOMALY: C-052 | PM2.5 = 47.14 (ABNORMAL)
+2026-04-20 02:10:37 - SensorSimulator - WARNING - ANOMALY: C-059 | bruit_db = 64.49 (ABNORMAL)
+2026-04-20 02:10:37 - SensorSimulator - INFO - RECOVERY: C-044 | Good readings: 3/10 | Error: 4.90%
+2026-04-20 02:10:47 - SensorSimulator - WARNING - ANOMALY: C-002 | PM10 = 50.18 (ABNORMAL)
+2026-04-20 02:10:47 - SensorSimulator - WARNING - ANOMALY: C-026 | bruit_db = 55.94 (ABNORMAL)
+2026-04-20 02:10:47 - SensorSimulator - WARNING - ANOMALY: C-052 | temperature = 28.86 (ABNORMAL)
+2026-04-20 02:10:47 - SensorSimulator - WARNING - ANOMALY: C-054 | debit_vehicules = 216.47 (ABNORMAL)
+2026-04-20 02:10:47 - SensorSimulator - INFO - RECOVERY: C-044 | Good readings: 4/10 | Error: 4.86%
+2026-04-20 02:10:57 - SensorSimulator - WARNING - ANOMALY: C-058 | CO2 = 333.15 (ABNORMAL)
+2026-04-20 02:10:57 - SensorSimulator - INFO - RECOVERY: C-044 | Good readings: 5/10 | Error: 4.83%
+2026-04-20 02:11:07 - SensorSimulator - WARNING - ANOMALY: C-005 | temperature = 27.92 (ABNORMAL)
+2026-04-20 02:11:07 - SensorSimulator - WARNING - ANOMALY: C-012 | humidite = 57.53 (ABNORMAL)
+2026-04-20 02:11:07 - SensorSimulator - WARNING - ANOMALY: C-040 | PM2.5 = 75.08 (ABNORMAL)
+2026-04-20 02:11:07 - SensorSimulator - WARNING - ANOMALY: C-041 | CO2 = 307.30 (ABNORMAL)
+2026-04-20 02:11:07 - SensorSimulator - WARNING - ANOMALY: C-052 | CO2 = 313.31 (ABNORMAL)
+2026-04-20 02:11:07 - SensorSimulator - WARNING - ANOMALY: C-058 | CO2 = 420.87 (ABNORMAL)
+2026-04-20 02:11:07 - SensorSimulator - INFO - RECOVERY: C-044 | Good readings: 6/10 | Error: 4.79%
+2026-04-20 02:11:17 - SensorSimulator - WARNING - ANOMALY: C-014 | temperature = 23.83 (ABNORMAL)
+2026-04-20 02:11:17 - SensorSimulator - WARNING - ANOMALY: C-047 | debit_vehicules = 75.72 (ABNORMAL)
+2026-04-20 02:11:17 - SensorSimulator - WARNING - ANOMALY: C-053 | humidite = 72.88 (ABNORMAL)
+2026-04-20 02:11:17 - SensorSimulator - WARNING - ANOMALY: C-055 | temperature = 21.07 (ABNORMAL)
+2026-04-20 02:11:17 - SensorSimulator - INFO - RECOVERY: C-044 | Good readings: 7/10 | Error: 4.76%
+2026-04-20 02:11:27 - SensorSimulator - WARNING - ANOMALY: C-015 | NO2 = 3.55 (ABNORMAL)
+2026-04-20 02:11:27 - SensorSimulator - WARNING - ANOMALY: C-033 | NO2 = 11.05 (ABNORMAL)
+2026-04-20 02:11:27 - SensorSimulator - WARNING - ANOMALY: C-036 | temperature = 20.36 (ABNORMAL)
+2026-04-20 02:11:27 - SensorSimulator - WARNING - ANOMALY: C-052 | NO2 = 15.34 (ABNORMAL)
+2026-04-20 02:11:27 - SensorSimulator - WARNING - ANOMALY: C-056 | PM2.5 = 77.25 (ABNORMAL)
+2026-04-20 02:11:28 - SensorSimulator - INFO - RECOVERY: C-044 | Good readings: 8/10 | Error: 4.73%
+2026-04-20 02:11:37 - SensorSimulator - WARNING - ANOMALY: C-015 | PM10 = 118.36 (ABNORMAL)
+2026-04-20 02:11:37 - SensorSimulator - WARNING - ANOMALY: C-015 | humidite = 64.55 (ABNORMAL)
+2026-04-20 02:11:37 - SensorSimulator - WARNING - ANOMALY: C-052 | NO2 = 26.21 (ABNORMAL)
+2026-04-20 02:11:37 - SensorSimulator - WARNING - ANOMALY: C-053 | humidite = 72.73 (ABNORMAL)
+2026-04-20 02:11:37 - SensorSimulator - INFO - RECOVERY: C-044 | Good readings: 9/10 | Error: 4.70%
+2026-04-20 02:11:47 - SensorSimulator - WARNING - ANOMALY: C-002 | PM2.5 = 55.00 (ABNORMAL)
+2026-04-20 02:11:47 - SensorSimulator - WARNING - ANOMALY: C-010 | debit_vehicules = 214.07 (ABNORMAL)
+2026-04-20 02:11:47 - SensorSimulator - WARNING - ANOMALY: C-012 | humidite = 74.69 (ABNORMAL)
+2026-04-20 02:11:47 - SensorSimulator - WARNING - ANOMALY: C-040 | NO2 = 41.52 (ABNORMAL)
+2026-04-20 02:11:47 - SensorSimulator - WARNING - SENSOR STATUS CHANGE: C-044 | signale -> actif | Error rate: 4.67%
+2026-04-20 02:11:57 - SensorSimulator - WARNING - ANOMALY: C-041 | NO2 = 85.77 (ABNORMAL)
+2026-04-20 02:11:57 - SensorSimulator - WARNING - ANOMALY: C-053 | PM2.5 = 87.15 (ABNORMAL)
+2026-04-20 02:12:07 - SensorSimulator - WARNING - ANOMALY: C-004 | bruit_db = 60.15 (ABNORMAL)
+2026-04-20 02:12:07 - SensorSimulator - WARNING - ANOMALY: C-028 | NO2 = 82.40 (ABNORMAL)
+2026-04-20 02:12:07 - SensorSimulator - WARNING - ANOMALY: C-051 | temperature = 11.90 (ABNORMAL)
+2026-04-20 02:12:07 - SensorSimulator - WARNING - ANOMALY: C-052 | NO2 = 39.10 (ABNORMAL)
+2026-04-20 02:12:07 - SensorSimulator - WARNING - ANOMALY: C-053 | temperature = 20.72 (ABNORMAL)
+2026-04-20 02:12:10 - SensorSimulator - INFO - ============================================================
+2026-04-20 02:12:10 - SensorSimulator - INFO - SENSOR SIMULATOR STOPPED
+2026-04-20 02:12:10 - SensorSimulator - INFO -    Total measurements: 3275
+2026-04-20 02:12:10 - SensorSimulator - INFO -    Total anomalies detected: 100
+2026-04-20 02:12:10 - SensorSimulator - INFO - ============================================================
+2026-04-20 02:12:10 - SensorSimulator - INFO - ============================================================
+2026-04-20 02:12:10 - SensorSimulator - INFO - SENSOR SIMULATOR STOPPED
+2026-04-20 02:12:10 - SensorSimulator - INFO -    Total measurements: 3275
+2026-04-20 02:12:10 - SensorSimulator - INFO -    Total anomalies detected: 100
+2026-04-20 02:12:10 - SensorSimulator - INFO - ============================================================

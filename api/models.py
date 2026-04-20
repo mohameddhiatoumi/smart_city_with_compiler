@@ -13,6 +13,8 @@ class SensorBase(BaseModel):
     zone_id: int
     type_capteur: str
     statut: str
+    taux_erreur: Optional[float] = None  # ← ADD THIS
+    nb_anomalies_totales: Optional[int] = None 
 
 class SensorDetail(SensorBase):
     date_installation: Optional[datetime]

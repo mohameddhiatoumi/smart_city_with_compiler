@@ -1,23 +1,27 @@
-# test_openrouter.py
-import os
-from ai_module import AIGenerator
+import sys
+from pathlib import Path
+sys.path.append(str(Path(__file__).parent))
 
-# Check if API key is set
-api_key = os.getenv("OPENROUTER_API_KEY")
-print(f"✓ API Key found: {api_key is not None}")
+from database.db_utils import execute_query
 
-if api_key:
-    print(f"  Key starts with: {api_key[:15]}...")
-    
-    # Test OpenRouter
-    try:
-        ai = AIGenerator(db_path="neo_sousse.db", use_openrouter=True)
-        print(f"\n✓ AI Generator initialized!")
-        print(f"  Provider: OpenRouter")
-        print(f"  Model: {ai.model}")
-        print("\n🎉 OpenRouter is working!")
-    except Exception as e:
-        print(f"\n✗ Error: {e}")
-else:
-    print("\n✗ No API key found!")
-    print("Set it with: set OPENROUTER_API_KEY=your-key")
+print("=" * 60)
+print("🔍 CHECKING SENSOR DATA IN DATABASE")
+print("=" * 60 + "\n")
+
+# Check what's in the capteurs table
+result = execute_query("""
+    SELECT 
+        capteur_id,
+        type_capteur,
+        statut,
+        taux_erreur,
+        nb_anomalies_totales
+    FROM capteurs
+    LIMIT 5
+""", ())
+
+print("📊 First 5 sensors in DB:")
+for row in result:
+    print(f"   {row['capteur_id']:10s} | Type: {row['type_capteur']:8s} | Status: {row['statut']:15s} | Error: {row['taux_erreur']} | Anomalies: {row['nb_anomalies_totales']}")
+
+print("\n" + "=" * 60)

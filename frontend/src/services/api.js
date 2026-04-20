@@ -32,6 +32,17 @@ export const getSensorById = async (sensorId) => {
   return response.data;
 };
 
+// ← NEW: Get sensor latest measurements
+export const getSensorLatestMeasurements = async (sensorId) => {
+  try {
+    const response = await api.get(`/sensors/${sensorId}/latest`);
+    return response.data || [];
+  } catch (error) {
+    console.warn(`Failed to fetch latest measurements for ${sensorId}`);
+    return [];
+  }
+};
+
 // Zones
 export const getAllZones = async () => {
   const response = await api.get('/zones');
@@ -45,15 +56,14 @@ export const getZonePollution = async (zoneId, pollutant = 'PM2.5') => {
   return response.data;
 };
 
-
-// Recent Measurements - FIXED
+// Recent Measurements
 export const getRecentMeasurements = async (limit = 100) => {
   try {
     console.log('📡 Fetching recent measurements from all sensors...');
     const response = await api.get('/sensors/measurements/recent-all', {
       params: { 
-        hours: 1,    // 
-        limit: 500   // ← INCREASE limit to get more points
+        hours: 1,
+        limit: 500
       }
     });
     console.log(`✅ Received ${response.data?.length || 0} measurements`);

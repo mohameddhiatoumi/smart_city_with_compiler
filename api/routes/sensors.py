@@ -87,7 +87,7 @@ async def list_sensors(
     zone_id: Optional[int] = None
 ):
     """Get list of all sensors with optional filters"""
-    query = "SELECT capteur_id, zone_id, type_capteur, statut FROM capteurs WHERE 1=1"
+    query = "SELECT capteur_id, zone_id, type_capteur, statut, taux_erreur, nb_anomalies_totales FROM capteurs WHERE 1=1"
     params = []
     
     if type_capteur:

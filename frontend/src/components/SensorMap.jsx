@@ -1,11 +1,12 @@
 import { useEffect, useState } from 'react';
 import { Activity, AlertTriangle, Wrench, XCircle, MapPin } from 'lucide-react';
-import { getAllSensors, getAllZones } from '../services/api';
+import { getAllSensors, getAllZones, getSensorLatestMeasurements } from '../services/api';
 
 const SensorMap = () => {
   const [sensors, setSensors] = useState([]);
   const [zones, setZones] = useState([]);
   const [selectedZone, setSelectedZone] = useState(null);
+  const [sensorMeasurements, setSensorMeasurements] = useState({});
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
@@ -17,6 +18,19 @@ const SensorMap = () => {
         ]);
         setSensors(sensorsData);
         setZones(zonesData);
+        
+        // Fetch latest measurements for all sensors
+        const measurements = {};
+        for (const sensor of sensorsData) {
+          try {
+            const latestMeasurements = await getSensorLatestMeasurements(sensor.capteur_id);
+            measurements[sensor.capteur_id] = latestMeasurements;
+          } catch (error) {
+            console.warn(`Failed to fetch measurements for ${sensor.capteur_id}`);
+            measurements[sensor.capteur_id] = [];
+          }
+        }
+        setSensorMeasurements(measurements);
       } catch (error) {
         console.error('Failed to fetch map data:', error);
       } finally {
@@ -40,11 +54,41 @@ const SensorMap = () => {
 
   // Status configuration
   const statusConfig = {
-    actif: { color: '#10B981', bgColor: 'bg-green-100', borderColor: 'border-green-500', icon: Activity, label: 'Actif' },
-    signale: { color: '#F59E0B', bgColor: 'bg-yellow-100', borderColor: 'border-yellow-500', icon: AlertTriangle, label: 'Signalé' },
-    en_maintenance: { color: '#3B82F6', bgColor: 'bg-blue-100', borderColor: 'border-blue-500', icon: Wrench, label: 'Maintenance' },
-    hors_service: { color: '#EF4444', bgColor: 'bg-red-100', borderColor: 'border-red-500', icon: XCircle, label: 'Hors Service' },
-    inactif: { color: '#6B7280', bgColor: 'bg-gray-100', borderColor: 'border-gray-400', icon: XCircle, label: 'Inactif' },
+    actif: { 
+      color: '#10B981', 
+      bgColor: 'bg-green-100', 
+      borderColor: 'border-green-500', 
+      icon: Activity, 
+      label: 'Actif' 
+    },
+    signale: { 
+      color: '#F59E0B', 
+      bgColor: 'bg-yellow-100', 
+      borderColor: 'border-yellow-500', 
+      icon: AlertTriangle, 
+      label: 'Signalé' 
+    },
+    en_maintenance: { 
+      color: '#3B82F6', 
+      bgColor: 'bg-blue-100', 
+      borderColor: 'border-blue-500', 
+      icon: Wrench, 
+      label: 'Maintenance' 
+    },
+    hors_service: { 
+      color: '#EF4444', 
+      bgColor: 'bg-red-100', 
+      borderColor: 'border-red-500', 
+      icon: XCircle, 
+      label: 'Hors Service' 
+    },
+    inactif: { 
+      color: '#6B7280', 
+      bgColor: 'bg-gray-100', 
+      borderColor: 'border-gray-400', 
+      icon: XCircle, 
+      label: 'Inactif' 
+    },
   };
 
   // Get zone statistics
@@ -69,13 +113,11 @@ const SensorMap = () => {
     return stats;
   };
 
-  // Get zone by ID
-  const getZone = (zoneId) => zones.find(z => z.zone_id === zoneId);
-
   if (loading) {
     return (
       <div className="bg-white rounded-lg shadow-md p-6">
         <div className="text-center py-12 text-gray-500">
+          <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-500 mx-auto mb-4"></div>
           Chargement de la carte...
         </div>
       </div>
@@ -84,6 +126,7 @@ const SensorMap = () => {
 
   return (
     <div className="bg-white rounded-lg shadow-md p-6 mb-8">
+      {/* Header */}
       <div className="flex items-center justify-between mb-6">
         <h2 className="text-2xl font-bold text-gray-900 flex items-center gap-2">
           <MapPin className="w-6 h-6" />
@@ -91,7 +134,7 @@ const SensorMap = () => {
         </h2>
         
         {/* Legend */}
-        <div className="flex gap-4 text-sm">
+        <div className="flex gap-4 text-sm flex-wrap">
           {Object.entries(statusConfig).map(([status, config]) => {
             const Icon = config.icon;
             return (
@@ -157,7 +200,7 @@ const SensorMap = () => {
               <div 
                 className="absolute top-2 right-2 w-3 h-3 rounded-full"
                 style={{ backgroundColor: stats.healthColor }}
-                title={`Santé de la zone`}
+                title="Santé de la zone"
               ></div>
             </div>
           );
@@ -176,18 +219,21 @@ const SensorMap = () => {
               {sensorsByZone[selectedZone.zone_id].map((sensor) => {
                 const config = statusConfig[sensor.statut] || statusConfig.inactif;
                 const Icon = config.icon;
+                const measurements = sensorMeasurements[sensor.capteur_id] || [];
 
                 return (
                   <div
                     key={sensor.capteur_id}
-                    className={`p-4 rounded-lg border-2 ${config.borderColor} ${config.bgColor}`}
+                    className={`p-4 rounded-lg border-2 ${config.borderColor} ${config.bgColor} flex flex-col`}
                   >
-                    <div className="flex items-center justify-between mb-2">
-                      <span className="font-bold text-gray-900">{sensor.capteur_id}</span>
+                    {/* Sensor Header */}
+                    <div className="flex items-center justify-between mb-3">
+                      <span className="font-bold text-lg text-gray-900">{sensor.capteur_id}</span>
                       <Icon className="w-5 h-5" style={{ color: config.color }} />
                     </div>
                     
-                    <div className="space-y-1 text-sm">
+                    {/* Sensor Info */}
+                    <div className="space-y-2 text-sm mb-3 pb-3 border-b border-current border-opacity-20">
                       <div className="flex justify-between">
                         <span className="text-gray-600">Type:</span>
                         <span className="font-medium text-gray-900 capitalize">{sensor.type_capteur}</span>
@@ -200,11 +246,34 @@ const SensorMap = () => {
                       </div>
                       <div className="flex justify-between">
                         <span className="text-gray-600">Erreur:</span>
-                        <span className={`font-medium ${sensor.taux_erreur > 15 ? 'text-red-600' : 'text-gray-900'}`}>
-                          {sensor.taux_erreur?.toFixed(1)}%
+                        <span className={`font-medium ${(sensor.taux_erreur || 0) > 15 ? 'text-red-600' : 'text-gray-900'}`}>
+                          {typeof sensor.taux_erreur === 'number' ? `${sensor.taux_erreur.toFixed(1)}%` : 'N/A'}
                         </span>
                       </div>
                     </div>
+
+                    {/* Latest Measurements */}
+                    {measurements && measurements.length > 0 ? (
+                      <div className="flex-grow">
+                        <p className="text-xs font-bold text-gray-700 mb-2 uppercase tracking-wider">Dernières valeurs:</p>
+                        <div className="space-y-1.5">
+                          {measurements.map((m, idx) => (
+                            <div key={idx} className="flex justify-between items-start gap-2">
+                              <span className="text-xs text-gray-600 truncate flex-shrink-0">{m.type_mesure}:</span>
+                              <span className="text-xs font-bold text-gray-900 text-right flex-shrink-0">
+                                {m.valeur !== null && m.valeur !== undefined 
+                                  ? `${parseFloat(m.valeur).toFixed(1)} ${m.unite || ''}` 
+                                  : 'N/A'}
+                              </span>
+                            </div>
+                          ))}
+                        </div>
+                      </div>
+                    ) : (
+                      <div className="text-xs text-gray-500 italic">
+                        Aucune mesure disponible
+                      </div>
+                    )}
                   </div>
                 );
               })}
@@ -218,29 +287,29 @@ const SensorMap = () => {
       )}
 
       {/* Summary Statistics */}
-      <div className="mt-6 pt-6 border-t">
+      <div className="mt-8 pt-6 border-t">
         <div className="grid grid-cols-2 md:grid-cols-4 gap-4 text-center">
-          <div>
+          <div className="p-4 bg-gray-50 rounded-lg">
             <div className="text-3xl font-bold text-gray-900">{zones.length}</div>
-            <div className="text-sm text-gray-600">Zones Total</div>
+            <div className="text-sm text-gray-600 mt-1">Zones Total</div>
           </div>
-          <div>
+          <div className="p-4 bg-green-50 rounded-lg">
             <div className="text-3xl font-bold text-green-600">
               {Object.values(sensorsByZone).flat().filter(s => s.statut === 'actif').length}
             </div>
-            <div className="text-sm text-gray-600">Capteurs Actifs</div>
+            <div className="text-sm text-gray-600 mt-1">Capteurs Actifs</div>
           </div>
-          <div>
+          <div className="p-4 bg-yellow-50 rounded-lg">
             <div className="text-3xl font-bold text-yellow-600">
               {Object.values(sensorsByZone).flat().filter(s => s.statut === 'signale').length}
             </div>
-            <div className="text-sm text-gray-600">Alertes</div>
+            <div className="text-sm text-gray-600 mt-1">Alertes</div>
           </div>
-          <div>
+          <div className="p-4 bg-red-50 rounded-lg">
             <div className="text-3xl font-bold text-red-600">
               {Object.values(sensorsByZone).flat().filter(s => s.statut === 'hors_service' || s.statut === 'en_maintenance').length}
             </div>
-            <div className="text-sm text-gray-600">En Panne</div>
+            <div className="text-sm text-gray-600 mt-1">En Panne</div>
           </div>
         </div>
       </div>
