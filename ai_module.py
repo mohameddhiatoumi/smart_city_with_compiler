@@ -1,6 +1,6 @@
 """
 AI Generative Module for Neo-Sousse 2030
-Generates natural language reports, recommendations, and FSM validation
+UPDATED: Works with OpenRouter API (free tier available)
 """
 
 import os
@@ -9,29 +9,57 @@ from datetime import datetime
 import sqlite3
 import json
 from openai import OpenAI
+from dotenv import load_dotenv
+load_dotenv()
 
 
 class AIGenerator:
-    """AI-powered content generator using OpenAI API"""
+    """AI-powered content generator using OpenRouter API"""
     
-    def __init__(self, api_key: Optional[str] = None, db_path: str = "neo_sousse.db"):
+    def __init__(self, api_key: Optional[str] = None, db_path: str = "neo_sousse.db", 
+                 use_openrouter: bool = True):
         """
         Initialize AI Generator
         
         Args:
-            api_key: OpenAI API key (if None, reads from OPENAI_API_KEY env var)
+            api_key: API key (if None, reads from OPENROUTER_API_KEY or OPENAI_API_KEY env var)
             db_path: Path to SQLite database
+            use_openrouter: If True, use OpenRouter API (default), else use OpenAI
         """
-        self.api_key = api_key or os.getenv("OPENAI_API_KEY")
+        self.use_openrouter = use_openrouter
+        
+        # Try to get API key from environment or parameter
+        if use_openrouter:
+            self.api_key = api_key or os.getenv("OPENROUTER_API_KEY") or os.getenv("OPENAI_API_KEY")
+            self.base_url = "https://openrouter.ai/api/v1"
+            # Use a free model from OpenRouter
+            self.model = "meta-llama/llama-3.2-3b-instruct:free"  # Free model!
+            # Alternative free models you can try:
+            # "google/gemma-2-9b-it:free"
+            # "meta-llama/llama-3.1-8b-instruct:free"
+            # "mistralai/mistral-7b-instruct:free"
+        else:
+            self.api_key = api_key or os.getenv("OPENAI_API_KEY")
+            self.base_url = "https://api.openai.com/v1"
+            self.model = "gpt-4o-mini"
+        
         if not self.api_key:
             raise ValueError(
-                "OpenAI API key required. Set OPENAI_API_KEY environment variable "
-                "or pass api_key parameter."
+                "API key required. Set OPENROUTER_API_KEY environment variable "
+                "or pass api_key parameter. Get free key at: https://openrouter.ai/keys"
             )
         
-        self.client = OpenAI(api_key=self.api_key)
+        # Initialize OpenAI client (works with OpenRouter too!)
+        self.client = OpenAI(
+            api_key=self.api_key,
+            base_url=self.base_url
+        )
+        
         self.db_path = db_path
-        self.model = "gpt-4o-mini"  # Cost-effective model for most tasks
+        
+        print(f"✓ AI Generator initialized")
+        print(f"  Provider: {'OpenRouter' if use_openrouter else 'OpenAI'}")
+        print(f"  Model: {self.model}")
     
     def _query_database(self, query: str, params: tuple = ()) -> List[Dict[str, Any]]:
         """Execute database query and return results as list of dicts"""
@@ -43,10 +71,18 @@ class AIGenerator:
         conn.close()
         return results
     
-    def _call_openai(self, system_prompt: str, user_prompt: str, 
-                     temperature: float = 0.7, max_tokens: int = 1000) -> str:
-        """Make OpenAI API call"""
+    def _call_ai(self, system_prompt: str, user_prompt: str, 
+                 temperature: float = 0.7, max_tokens: int = 1000) -> str:
+        """Make API call (works with both OpenRouter and OpenAI)"""
         try:
+            extra_headers = {}
+            if self.use_openrouter:
+                # OpenRouter-specific headers
+                extra_headers = {
+                    "HTTP-Referer": "https://github.com/neo-sousse-2030",  # Optional
+                    "X-Title": "Neo-Sousse 2030 Smart City"  # Optional
+                }
+            
             response = self.client.chat.completions.create(
                 model=self.model,
                 messages=[
@@ -54,7 +90,8 @@ class AIGenerator:
                     {"role": "user", "content": user_prompt}
                 ],
                 temperature=temperature,
-                max_tokens=max_tokens
+                max_tokens=max_tokens,
+                extra_headers=extra_headers
             )
             return response.choices[0].message.content.strip()
         except Exception as e:
@@ -143,7 +180,7 @@ Note:
 - NO2 seuil: 40 µg/m³
 """
         
-        return self._call_openai(system_prompt, user_prompt, temperature=0.5, max_tokens=800)
+        return self._call_ai(system_prompt, user_prompt, temperature=0.5, max_tokens=800)
     
     # ========================================================================
     # SENSOR MAINTENANCE RECOMMENDATIONS
@@ -232,7 +269,7 @@ Génère une recommandation structurée avec:
 4. Estimation du temps d'intervention
 """
         
-        return self._call_openai(system_prompt, user_prompt, temperature=0.3, max_tokens=600)
+        return self._call_ai(system_prompt, user_prompt, temperature=0.3, max_tokens=600)
     
     # ========================================================================
     # TRAFFIC ANALYSIS
@@ -305,7 +342,7 @@ Inclus dans ton analyse:
 4. Recommandations d'optimisation
 """
         
-        return self._call_openai(system_prompt, user_prompt, temperature=0.5, max_tokens=800)
+        return self._call_ai(system_prompt, user_prompt, temperature=0.5, max_tokens=800)
     
     # ========================================================================
     # FSM TRANSITION VALIDATION (Advanced)
@@ -364,7 +401,7 @@ Est-ce que cette transition est logique et appropriée?
 """
         
         try:
-            response = self._call_openai(system_prompt, user_prompt, temperature=0.2, max_tokens=400)
+            response = self._call_ai(system_prompt, user_prompt, temperature=0.2, max_tokens=400)
             # Try to parse JSON response
             result = json.loads(response)
             return result
@@ -439,7 +476,7 @@ Inclus:
 4. 3 recommandations concrètes pour améliorer le score
 """
         
-        return self._call_openai(system_prompt, user_prompt, temperature=0.6, max_tokens=700)
+        return self._call_ai(system_prompt, user_prompt, temperature=0.6, max_tokens=700)
 
 
 # ============================================================================
@@ -447,7 +484,7 @@ Inclus:
 # ============================================================================
 
 class TemplateAIGenerator:
-    """Template-based generator as fallback when no OpenAI API key"""
+    """Template-based generator as fallback when no API key"""
     
     def __init__(self, db_path: str = "neo_sousse.db"):
         self.db_path = db_path
@@ -577,12 +614,12 @@ class TemplateAIGenerator:
 
 if __name__ == "__main__":
     # Demo usage
-    print("=== AI Module Demo ===\n")
+    print("=== AI Module Demo (OpenRouter Compatible) ===\n")
     
-    # Try OpenAI version if API key available
+    # Try OpenRouter version if API key available
     try:
-        ai = AIGenerator(db_path="neo_sousse.db")
-        print("✓ OpenAI API configured\n")
+        ai = AIGenerator(db_path="neo_sousse.db", use_openrouter=True)
+        print("✓ Using OpenRouter (free models available!)\n")
         print("Available methods:")
         print("- generate_air_quality_report()")
         print("- generate_maintenance_recommendation()")

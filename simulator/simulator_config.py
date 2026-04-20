@@ -13,7 +13,7 @@ MEASUREMENT_INTERVAL_SECONDS = 10   # How often to generate measurements (5 seco
 SIMULATION_SPEED_MULTIPLIER = 1    # Set to 60 for 1-hour simulation in 1 minute (testing mode)
 
 # Anomaly detection
-ANOMALY_PROBABILITY = 0.03         # 3% chance of anomaly per measurement (increased from 1%)
+ANOMALY_PROBABILITY = 0.03       # 3% chance of anomaly per measurement (increased from 1%)
 ERROR_RATE_THRESHOLD = 15.0        # % error rate to trigger 'signale' status
 AUTO_CREATE_INTERVENTIONS = True   # Automatically create interventions for faulty sensors
 

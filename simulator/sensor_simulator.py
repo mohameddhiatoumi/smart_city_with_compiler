@@ -10,7 +10,6 @@ import time
 import signal
 from datetime import datetime
 from threading import Thread, Event
-from compiler import NLQueryCompiler
 sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
 from database.db_utils import get_connection
@@ -36,11 +35,13 @@ class SensorSimulator:
         self.logger = setup_logger(LOG_FILE, LOG_LEVEL, CONSOLE_OUTPUT)
         self.stop_event = Event()
         self.active_sensors = {}  # {sensor_id: {type, last_values: {measure_type: value}}}
+        self.recovery_counters = {}  # {sensor_id: consecutive_normal_readings}
         self.stats = {
             'total_measurements': 0,
             'total_anomalies': 0,
             'interventions_created': 0
         }
+        self.RECOVERY_THRESHOLD = 10  # 10 consecutive normal cycles to recover
         
     def load_active_sensors(self):
         """Load all active sensors from database"""
@@ -57,6 +58,9 @@ class SensorSimulator:
             for sensor in sensors:
                 sensor_id = sensor['capteur_id']
                 sensor_type = sensor['type_capteur']
+                
+                # Initialize recovery counter
+                self.recovery_counters[sensor_id] = 0
                 
                 # Initialize last values for each measurement type
                 last_values = {}
@@ -119,89 +123,144 @@ class SensorSimulator:
     
     def save_measurements(self, measurements):
         """Batch save measurements to database"""
-        with get_connection() as conn:
-            cursor = conn.cursor()
-            cursor.executemany("""
-                INSERT INTO mesures (capteur_id, type_mesure, valeur, unite, est_anomalie)
-                VALUES (:capteur_id, :type_mesure, :valeur, :unite, :est_anomalie)
-            """, measurements)
+        current_time = datetime.now().strftime('%Y-%m-%d %H:%M:%S')
+        
+        # Add timestamp to each measurement
+        for measurement in measurements:
+            measurement['timestamp'] = current_time
+        
+        try:
+            with get_connection() as conn:
+                cursor = conn.cursor()
+                cursor.executemany("""
+                    INSERT INTO mesures (capteur_id, timestamp, type_mesure, valeur, unite, est_anomalie)
+                    VALUES (:capteur_id, :timestamp, :type_mesure, :valeur, :unite, :est_anomalie)
+                """, measurements)
+                conn.commit()
+        except Exception as e:
+            self.logger.error(f"Error saving measurements: {e}")
     
-    def update_sensor_statistics(self, sensor_id):
-        """Update sensor error rate and check for status changes"""
-        with get_connection() as conn:
-            cursor = conn.cursor()
-            
-            # Get total measurements and anomalies for this sensor
-            cursor.execute("""
-                SELECT 
-                    COUNT(*) as total,
-                    SUM(est_anomalie) as anomalies
-                FROM mesures
-                WHERE capteur_id = ?
-            """, (sensor_id,))
-            
-            result = cursor.fetchone()
-            total = result['total']
-            anomalies = result['anomalies'] or 0
-            
-            error_rate = calculate_error_rate(total, anomalies)
-            
-            # Update sensor statistics
-            cursor.execute("""
-                UPDATE capteurs
-                SET taux_erreur = ?,
-                    nb_anomalies_totales = ?
-                WHERE capteur_id = ?
-            """, (error_rate, anomalies, sensor_id))
-            
-            # Check if status should change
-            cursor.execute("""
-                SELECT statut FROM capteurs WHERE capteur_id = ?
-            """, (sensor_id,))
-            current_status = cursor.fetchone()['statut']
-            
-            # Trigger status change if error rate exceeds threshold
-            if should_trigger_intervention(error_rate, ERROR_RATE_THRESHOLD):
-                if current_status == 'actif':
+    def update_sensor_statistics(self):
+        """Update sensor statistics for all active sensors and check for status changes"""
+        try:
+            with get_connection() as conn:
+                cursor = conn.cursor()
+                
+                # Get all active/signaled sensors
+                cursor.execute("""
+                    SELECT capteur_id FROM capteurs 
+                    WHERE statut IN ('actif', 'signale')
+                """)
+                
+                sensor_ids = [row['capteur_id'] for row in cursor.fetchall()]
+                
+                for sensor_id in sensor_ids:
+                    # Get measurements from last 24 hours
                     cursor.execute("""
-                        UPDATE capteurs
-                        SET statut = 'signale'
-                        WHERE capteur_id = ?
+                        SELECT 
+                            COUNT(*) as total,
+                            SUM(est_anomalie) as anomalies
+                        FROM mesures
+                        WHERE capteur_id = ? 
+                        AND timestamp >= datetime('now', '-24 hours')
                     """, (sensor_id,))
                     
-                    log_sensor_status_change(
-                        self.logger, sensor_id, 'actif', 'signale', error_rate
-                    )
+                    result = cursor.fetchone()
+                    total = result['total']
+                    anomalies = result['anomalies'] or 0
                     
-                    # Create intervention if enabled
-                    if AUTO_CREATE_INTERVENTIONS:
-                        self.create_intervention(sensor_id, error_rate)
-    
-    def create_intervention(self, sensor_id, error_rate):
-        """Automatically create intervention for faulty sensor"""
-        with get_connection() as conn:
-            cursor = conn.cursor()
-            
-            # Check if intervention already exists for this sensor
-            cursor.execute("""
-                SELECT COUNT(*) as count FROM interventions
-                WHERE capteur_id = ? AND statut != 'termine'
-            """, (sensor_id,))
-            
-            if cursor.fetchone()['count'] > 0:
-                return  # Already has open intervention
-            
-            # Create new intervention
-            description = f"Auto-generated: Error rate {error_rate:.2f}% exceeds threshold"
-            cursor.execute("""
-                INSERT INTO interventions (capteur_id, statut, description)
-                VALUES (?, 'demande', ?)
-            """, (sensor_id, description))
-            
-            intervention_id = cursor.lastrowid
-            self.stats['interventions_created'] += 1
-            
-            log_intervention_created(self.logger, sensor_id, intervention_id)
+                    error_rate = calculate_error_rate(total, anomalies)
+                    
+                    # Update sensor statistics
+                    cursor.execute("""
+                        UPDATE capteurs
+                        SET taux_erreur = ?,
+                            nb_anomalies_totales = ?
+                        WHERE capteur_id = ?
+                    """, (error_rate, anomalies, sensor_id))
+                    
+                    # Get current status
+                    cursor.execute("""
+                        SELECT statut FROM capteurs WHERE capteur_id = ?
+                    """, (sensor_id,))
+                    current_status = cursor.fetchone()['statut']
+                    
+                    # ===== INSTANT FLAG: If error rate exceeds threshold =====
+                    if error_rate >= ERROR_RATE_THRESHOLD:
+                        if current_status == 'actif':
+                            cursor.execute("""
+                                UPDATE capteurs
+                                SET statut = 'signale'
+                                WHERE capteur_id = ?
+                            """, (sensor_id,))
+                            
+                            log_sensor_status_change(
+                                self.logger, sensor_id, 'actif', 'signale', error_rate
+                            )
+                            
+                            # Reset recovery counter on flagging
+                            self.recovery_counters[sensor_id] = 0
+                            
+                            # Create intervention if enabled
+                            if AUTO_CREATE_INTERVENTIONS:
+                                # Check if intervention already exists
+                                cursor.execute("""
+                                    SELECT COUNT(*) as count FROM interventions
+                                    WHERE capteur_id = ? AND statut != 'termine'
+                                """, (sensor_id,))
+                                
+                                if cursor.fetchone()['count'] == 0:
+                                    # Create new intervention
+                                    description = f"Auto-generated: Error rate {error_rate:.2f}% exceeds threshold"
+                                    cursor.execute("""
+                                        INSERT INTO interventions (capteur_id, statut, description)
+                                        VALUES (?, 'demande', ?)
+                                    """, (sensor_id, description))
+                                    
+                                    self.stats['interventions_created'] += 1
+                                    log_intervention_created(self.logger, sensor_id, cursor.lastrowid)
+                    
+                    # ===== RECOVERY WITH COUNTER: If error rate is good =====
+                    elif error_rate < 5.0:
+                        if current_status == 'signale':
+                            # Increment recovery counter
+                            self.recovery_counters[sensor_id] += 1
+                            
+                            # Only recover after 10 consecutive normal cycles
+                            if self.recovery_counters[sensor_id] >= self.RECOVERY_THRESHOLD:
+                                cursor.execute("""
+                                    UPDATE capteurs
+                                    SET statut = 'actif'
+                                    WHERE capteur_id = ?
+                                """, (sensor_id,))
+                                
+                                log_sensor_status_change(
+                                    self.logger, sensor_id, 'signale', 'actif', error_rate
+                                )
+                                
+                                # Reset counter after recovery
+                                self.recovery_counters[sensor_id] = 0
+                            else:
+                                # Log recovery progress
+                                self.logger.info(
+                                    f"RECOVERY: {sensor_id} | Good readings: {self.recovery_counters[sensor_id]}/{self.RECOVERY_THRESHOLD} | Error: {error_rate:.2f}%"
+                                )
+                        else:
+                            # Reset counter if sensor is actif and doing well
+                            self.recovery_counters[sensor_id] = 0
+                    
+                    # ===== RESET COUNTER: If error rate is between 5-15% (ambiguous) =====
+                    else:
+                        # In the middle zone - don't change status but reset recovery counter
+                        if current_status == 'signale':
+                            # If we get an ambiguous reading while in signale, reset the counter
+                            self.recovery_counters[sensor_id] = 0
+                            self.logger.debug(f"RESET RECOVERY: {sensor_id} | Ambiguous reading detected, recovery counter reset | Error: {error_rate:.2f}%")
+                
+                conn.commit()
+        
+        except Exception as e:
+            self.logger.error(f"Error updating sensor statistics: {e}")
     
     def simulation_cycle(self):
         """Single simulation cycle - generate measurements for all sensors"""
@@ -215,10 +274,8 @@ class SensorSimulator:
         if all_measurements:
             self.save_measurements(all_measurements)
         
-        # Update sensor statistics (check every 10 cycles to reduce DB load)
-        if self.stats['total_measurements'] % 10 == 0:
-            for sensor_id in self.active_sensors.keys():
-                self.update_sensor_statistics(sensor_id)
+        # Update sensor statistics after EVERY cycle
+        self.update_sensor_statistics()
     
     def run(self):
         """Main simulation loop"""
@@ -246,7 +303,9 @@ class SensorSimulator:
                     break
                     
         except KeyboardInterrupt:
-            self.logger.info(" Keyboard interrupt received")
+            self.logger.info("Keyboard interrupt received")
+        except Exception as e:
+            self.logger.error(f"Simulator error: {e}")
         finally:
             self.stop()
     
@@ -262,7 +321,7 @@ class SensorSimulator:
 
 def signal_handler(sig, frame):
     """Handle CTRL+C gracefully"""
-    print("\n Stopping simulator...")
+    print("\nStopping simulator...")
     simulator.stop()
     sys.exit(0)
 

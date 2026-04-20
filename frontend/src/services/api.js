@@ -52,7 +52,7 @@ export const getRecentMeasurements = async (limit = 100) => {
     console.log('📡 Fetching recent measurements from all sensors...');
     const response = await api.get('/sensors/measurements/recent-all', {
       params: { 
-        hours: 24,    // 
+        hours: 1,    // 
         limit: 500   // ← INCREASE limit to get more points
       }
     });
