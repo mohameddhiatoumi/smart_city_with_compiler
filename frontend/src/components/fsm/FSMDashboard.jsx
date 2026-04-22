@@ -71,27 +71,34 @@ const FSMDashboard = ({ onClose }) => {
   // In FSMDashboard.jsx, update the handleTriggerEvent function:
 
     const handleTriggerEvent = async (event, context = {}) => {
-    if (!entityId) return;
+  if (!entityId) return;
+  if (!event) {
+    console.warn('⚠️ No event provided to handleTriggerEvent');
+    return;
+  }
 
-    setLoading(true);
-    try {
-        if (entityType === 'sensor') {
-        await triggerSensorEvent(entityId, event, context);
-        } else if (entityType === 'intervention') {
-        await triggerInterventionEvent(entityId, event, context);
-        } else if (entityType === 'vehicle') {
-        await triggerVehicleEvent(entityId, event, context);
-        }
-
-        // Refresh state after event
-        await fetchFSMState(entityType, entityId);
-    } catch (err) {
-        setError(err.message || 'Failed to trigger event');
-        throw err;
-    } finally {
-        setLoading(false);
+  setLoading(true);
+  try {
+    console.log(`🔄 Triggering event: ${event} for ${entityType} ${entityId}`);
+    
+    if (entityType === 'sensor') {
+      await triggerSensorEvent(entityId, event, context);
+    } else if (entityType === 'intervention') {
+      await triggerInterventionEvent(entityId, event, context);
+    } else if (entityType === 'vehicle') {
+      await triggerVehicleEvent(entityId, event, context);
     }
-    };
+
+    // Refresh state after event
+    await fetchFSMState(entityType, entityId);
+  } catch (err) {
+    setError(err.message || 'Failed to trigger event');
+    console.error('❌ Error triggering event:', err);
+    throw err;
+  } finally {
+    setLoading(false);
+  }
+};
   
 
   // Initial fetch and auto-refresh

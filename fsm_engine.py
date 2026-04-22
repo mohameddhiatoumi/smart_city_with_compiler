@@ -303,17 +303,21 @@ def create_intervention_fsm(db_path: str, intervention_id: int) -> StateMachine:
     
     def generate_temp_value(context: Dict[str, Any]) -> None:
         """Generate corrected sensor value and store temporarily"""
+        conn = None
         try:
-            conn = sqlite3.connect(db_path)
+            conn = sqlite3.connect(db_path, timeout=10)
             cursor = conn.cursor()
             
+            print(f"\n🔍 generate_temp_value called for intervention {context['intervention_id']}")
+            
+            # Get sensor info
             cursor.execute(
-                """SELECT c.capteur_id, c.type_capteur, m.valeur, m.type_mesure 
-                   FROM interventions i
-                   JOIN capteurs c ON i.capteur_id = c.capteur_id
-                   LEFT JOIN mesures m ON c.capteur_id = m.capteur_id
-                   WHERE i.intervention_id = ?
-                   ORDER BY m.timestamp DESC LIMIT 1""",
+                """SELECT c.capteur_id, c.type_capteur, m.valeur, m.type_mesure, m.mesure_id
+                FROM interventions i
+                JOIN capteurs c ON i.capteur_id = c.capteur_id
+                LEFT JOIN mesures m ON c.capteur_id = m.capteur_id
+                WHERE i.intervention_id = ?
+                ORDER BY m.timestamp DESC LIMIT 1""",
                 (context['intervention_id'],)
             )
             result = cursor.fetchone()
@@ -324,8 +328,12 @@ def create_intervention_fsm(db_path: str, intervention_id: int) -> StateMachine:
                 current_value = result[2] if result[2] else 0
                 type_mesure = result[3] if result[3] else "unknown"
                 
+                # Generate corrected value
                 corrected_value = generate_corrected_sensor_value(type_capteur, current_value)
                 
+                print(f"📊 Generated corrected value: {corrected_value} (was {current_value})")
+                
+                # Store in intervention description as JSON
                 temp_data = {
                     'temp_value': corrected_value,
                     'original_value': current_value,
@@ -334,15 +342,30 @@ def create_intervention_fsm(db_path: str, intervention_id: int) -> StateMachine:
                     'generated_at': datetime.now().isoformat()
                 }
                 
+                temp_json = json.dumps(temp_data)
+                print(f"💾 Storing temp data: {temp_json}")
+                
                 cursor.execute(
                     "UPDATE interventions SET description = ? WHERE intervention_id = ?",
-                    (json.dumps(temp_data), context['intervention_id'])
+                    (temp_json, context['intervention_id'])
                 )
                 conn.commit()
+                print(f"✅ Temp value stored")
+                
+                context['temp_value'] = corrected_value
+            else:
+                print(f"⚠️ No sensor data found for intervention {context['intervention_id']}")
             
             conn.close()
         except Exception as e:
-            print(f"Error generating temp value: {e}")
+            print(f"❌ Error generating temp value: {type(e).__name__}: {e}")
+            import traceback
+            traceback.print_exc()
+            if conn:
+                conn.rollback()
+        finally:
+            if conn:
+                conn.close()
     
     def ai_validate_sensor(context: Dict[str, Any]) -> None:
         """AI validates the temp value and generates report"""
@@ -351,67 +374,94 @@ def create_intervention_fsm(db_path: str, intervention_id: int) -> StateMachine:
             conn = sqlite3.connect(db_path, timeout=10)
             cursor = conn.cursor()
             
-            # Get temp data
+            print(f"\n🔍 ai_validate_sensor called for intervention {context['intervention_id']}")
+            
+            # Get temp data from intervention
             cursor.execute(
                 "SELECT capteur_id, description FROM interventions WHERE intervention_id = ?",
                 (context['intervention_id'],)
             )
             result = cursor.fetchone()
             
-            if result:
-                capteur_id = result[0]
-                description_json = result[1]
-                
-                temp_data = json.loads(description_json) if description_json else {}
-                temp_value = temp_data.get('temp_value')
-                original_value = temp_data.get('original_value')
-                type_capteur = temp_data.get('type_capteur')
-                type_mesure = temp_data.get('type_mesure')
-                
-                # AI Validation
-                is_valid, ai_report = validate_sensor_with_ai(
-                    temp_value=temp_value,
-                    original_value=original_value,
-                    type_capteur=type_capteur,
-                    type_mesure=type_mesure
-                )
-                
-                # Store AI report
-                validation_data = {
-                    'is_valid': is_valid,
-                    'ai_report': ai_report,
-                    'temp_value': temp_value,
-                    'original_value': original_value,
-                    'validated_at': datetime.now().isoformat()
-                }
-                
-                # Update intervention with AI report
+            if not result:
+                print(f"❌ Intervention {context['intervention_id']} not found")
+                return
+            
+            capteur_id = result[0]
+            description_json = result[1]
+            
+            print(f"📋 Current description: {description_json}")
+            
+            # Parse temp data
+            temp_data = {}
+            if description_json:
+                try:
+                    temp_data = json.loads(description_json)
+                    print(f"✅ Parsed temp data: {temp_data}")
+                except json.JSONDecodeError:
+                    print(f"⚠️ Could not parse existing description as JSON, creating new")
+                    temp_data = {}
+            
+            temp_value = temp_data.get('temp_value')
+            original_value = temp_data.get('original_value')
+            type_capteur = temp_data.get('type_capteur')
+            type_mesure = temp_data.get('type_mesure')
+            
+            print(f"📊 Values: temp={temp_value}, original={original_value}, type={type_capteur}")
+            
+            # AI Validation
+            is_valid, ai_report = validate_sensor_with_ai(
+                temp_value=temp_value,
+                original_value=original_value,
+                type_capteur=type_capteur,
+                type_mesure=type_mesure
+            )
+            
+            print(f"🤖 AI Decision: is_valid={is_valid}")
+            
+            # Store AI report
+            validation_data = {
+                'is_valid': is_valid,
+                'ai_report': ai_report,
+                'temp_value': temp_value,
+                'original_value': original_value,
+                'validated_at': datetime.now().isoformat()
+            }
+            
+            validation_json = json.dumps(validation_data)
+            print(f"💾 Storing validation data: {validation_json}")
+            
+            # Update intervention with AI report
+            cursor.execute(
+                "UPDATE interventions SET description = ?, validation_ia = ? WHERE intervention_id = ?",
+                (validation_json, 1 if is_valid else 0, context['intervention_id'])
+            )
+            
+            # If valid, update sensor value using subquery
+            if is_valid:
                 cursor.execute(
-                    "UPDATE interventions SET description = ?, validation_ia = ? WHERE intervention_id = ?",
-                    (json.dumps(validation_data), 1 if is_valid else 0, context['intervention_id'])
+                    """UPDATE mesures SET valeur = ? 
+                    WHERE mesure_id = (
+                        SELECT mesure_id FROM mesures 
+                        WHERE capteur_id = ? 
+                        ORDER BY timestamp DESC LIMIT 1
+                    )""",
+                    (temp_value, capteur_id)
                 )
-                
-                # If valid, update sensor value using subquery
-                if is_valid:
-                    cursor.execute(
-                        """UPDATE mesures SET valeur = ? 
-                        WHERE mesure_id = (
-                            SELECT mesure_id FROM mesures 
-                            WHERE capteur_id = ? 
-                            ORDER BY timestamp DESC LIMIT 1
-                        )""",
-                        (temp_value, capteur_id)
-                    )
-                
-                conn.commit()
-                
-                # Store in context
-                context['ai_report'] = ai_report
-                context['is_valid'] = is_valid
-                context['validation_ia'] = 1 if is_valid else 0
+                print(f"✅ Updated sensor measurement to {temp_value}")
+            
+            conn.commit()
+            print(f"✅ Intervention updated with validation data")
+            
+            # Store in context for later use
+            context['ai_report'] = ai_report
+            context['is_valid'] = is_valid
+            context['validation_ia'] = 1 if is_valid else 0
             
         except Exception as e:
-            print(f"Error in AI validation: {e}")
+            print(f"❌ Error in AI validation: {type(e).__name__}: {e}")
+            import traceback
+            traceback.print_exc()
             if conn:
                 conn.rollback()
         finally:
@@ -481,11 +531,19 @@ def create_intervention_fsm(db_path: str, intervention_id: int) -> StateMachine:
                       action=lambda ctx: update_intervention_status({**ctx, 'new_status': 'demande'}))
     
     # IA_VALIDE → TERMINÉ (updates sensor to actif)
-    fsm.add_transition("ia_valide", "termine", "terminer",
+        # IA_VALIDE → TERMINÉ or DEMANDE (auto-decided by AI)
+    # If valid -> terminate
+    fsm.add_transition("ia_valide", "termine", "auto_terminate",
+                      condition=lambda ctx: ctx.get('is_valid', False),
                       action=lambda ctx: [
                           update_sensor_to_actif(ctx),
                           update_intervention_status({**ctx, 'new_status': 'termine', 'validation_ia': 1})
                       ])
+    
+    # If invalid -> back to demand
+    fsm.add_transition("ia_valide", "demande", "auto_reject",
+                      condition=lambda ctx: not ctx.get('is_valid', False),
+                      action=lambda ctx: update_intervention_status({**ctx, 'new_status': 'demande'}))
     
     return fsm
 

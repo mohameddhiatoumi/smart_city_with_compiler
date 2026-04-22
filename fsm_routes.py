@@ -8,6 +8,8 @@ from typing import Dict, Any, List, Optional
 import sys
 import os
 import sqlite3
+import json
+import time 
 
 # Import FSM engine
 sys.path.append(os.path.dirname(__file__))
@@ -365,6 +367,192 @@ async def get_vehicle_diagram(vehicule_id: str):
         return {"diagram": fsm.get_state_diagram()}
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
+#
+# ============================================================================
+# IA VALIDATION AUTO-TRANSITION
+# ============================================================================
+
+@router.post("/interventions/{intervention_id}/ia-auto-validate")
+async def ia_auto_validate(intervention_id: str):
+    """
+    IA automatically validates and decides:
+    - If valid -> moves to TERMINÉ
+    - If invalid -> moves back to DEMANDE
+    Shows thinking animation for 3 seconds before deciding
+    """
+    if fsm_manager is None:
+        raise HTTPException(status_code=500, detail="FSM manager not initialized")
+    
+    try:
+        print(f"\n🔍 ia_auto_validate called with intervention_id: {intervention_id}")
+        
+        # Convert to int with better error handling
+        try:
+            intervention_id_int = int(intervention_id)
+        except ValueError as ve:
+            print(f"❌ Cannot convert intervention_id '{intervention_id}' to int: {ve}")
+            raise HTTPException(status_code=400, detail=f"Invalid intervention ID format")
+        
+        print(f"✅ Converted to int: {intervention_id_int}")
+        
+        # Get the intervention FSM
+        fsm = fsm_manager.get_intervention_fsm(intervention_id_int)
+        print(f"📊 Current FSM state: {fsm.current_state}")
+        
+        # Check if we're in ia_valide state
+        if fsm.current_state != 'ia_valide':
+            print(f"❌ Not in ia_valide state, current: {fsm.current_state}")
+            raise HTTPException(status_code=400, detail=f"Intervention is in '{fsm.current_state}' state, not 'ia_valide'")
+        
+        # Get validation data from intervention
+        conn = sqlite3.connect(fsm_manager.db_path)
+        cursor = conn.cursor()
+        cursor.execute(
+            "SELECT description, capteur_id FROM interventions WHERE intervention_id = ?",
+            (intervention_id_int,)
+        )
+        result = cursor.fetchone()
+        
+        if not result:
+            conn.close()
+            print(f"❌ Intervention {intervention_id_int} not found")
+            raise HTTPException(status_code=404, detail=f"Intervention not found")
+        
+        description_str = result[0]
+        capteur_id = result[1]
+        
+        print(f"📋 Description from DB: {repr(description_str)}")
+        print(f"🔧 Capteur ID: {capteur_id}")
+        
+        # Parse validation data or generate if missing
+        if description_str:
+            try:
+                validation_data = json.loads(description_str)
+                print(f"✅ Parsed existing validation data: {validation_data}")
+            except json.JSONDecodeError as e:
+                print(f"⚠️ Could not parse JSON, will generate validation")
+                validation_data = None
+        else:
+            print(f"⚠️ Description is empty, will generate validation")
+            validation_data = None
+        
+        # If no valid data, generate it now
+        if not validation_data:
+            print(f"🔄 Generating validation data on-the-fly...")
+            
+            # Get sensor data
+            cursor.execute(
+                """SELECT c.type_capteur, m.valeur, m.type_mesure
+                   FROM capteurs c
+                   LEFT JOIN mesures m ON c.capteur_id = m.capteur_id
+                   WHERE c.capteur_id = ?
+                   ORDER BY m.timestamp DESC LIMIT 1""",
+                (capteur_id,)
+            )
+            sensor_result = cursor.fetchone()
+            conn.close()
+            
+            if sensor_result:
+                type_capteur = sensor_result[0]
+                current_value = sensor_result[1] if sensor_result[1] else 0
+                type_mesure = sensor_result[2] if sensor_result[2] else "unknown"
+                
+                print(f"📊 Sensor data: type={type_capteur}, value={current_value}, mesure={type_mesure}")
+                
+                # Import validation functions
+                from fsm_engine import generate_corrected_sensor_value, validate_sensor_with_ai
+                
+                # Generate corrected value
+                corrected_value = generate_corrected_sensor_value(type_capteur, current_value)
+                print(f"📈 Generated corrected value: {corrected_value} (original: {current_value})")
+                
+                # Validate with AI
+                is_valid, ai_report = validate_sensor_with_ai(
+                    temp_value=corrected_value,
+                    original_value=current_value,
+                    type_capteur=type_capteur,
+                    type_mesure=type_mesure
+                )
+                
+                validation_data = {
+                    'is_valid': is_valid,
+                    'ai_report': ai_report,
+                    'temp_value': corrected_value,
+                    'original_value': current_value,
+                    'type_capteur': type_capteur,
+                    'type_mesure': type_mesure
+                }
+                
+                print(f"✅ Generated validation data: is_valid={is_valid}")
+            else:
+                conn.close()
+                print(f"❌ No sensor data found for capteur {capteur_id}")
+                raise HTTPException(status_code=400, detail="No sensor measurement data found")
+        
+        # Extract validation results
+        is_valid = validation_data.get('is_valid', False)
+        ai_report = validation_data.get('ai_report', 'Unable to generate report')
+        
+        print(f"🤖 AI Decision: is_valid={is_valid}")
+        print(f"📝 AI Report: {ai_report}")
+        
+        # Simulate AI thinking (3 seconds delay)
+        print("💭 AI thinking...")
+        time.sleep(3)
+        print("✅ AI thinking complete")
+        
+        # Auto-transition based on AI decision
+        context = {
+            'intervention_id': intervention_id_int,
+            'is_valid': is_valid,
+            'ai_report': ai_report
+        }
+        
+        if is_valid:
+            # Valid -> move to TERMINÉ
+            print(f"✅ Triggering auto_terminate")
+            new_state = fsm.trigger('auto_terminate', context)
+            print(f"✅ New state: {new_state}")
+            
+            # Clear sensor cache so it reloads from DB with new status
+            fsm_manager.clear_sensor_cache(capteur_id)
+            print(f"🧹 Cleared FSM cache for sensor {capteur_id}")
+            
+            return {
+                "success": True,
+                "decision": "ACCEPTED ✅",
+                "new_state": new_state,
+                "ai_report": ai_report,
+                "message": "AI validation passed. Intervention completed."
+            }
+        else:
+            # Invalid -> move back to DEMANDE
+            print(f"❌ Triggering auto_reject")
+            new_state = fsm.trigger('auto_reject', context)
+            print(f"📍 New state: {new_state}")
+            
+            # Clear sensor cache so it reloads from DB
+            fsm_manager.clear_sensor_cache(capteur_id)
+            print(f"🧹 Cleared FSM cache for sensor {capteur_id}")
+            
+            return {
+                "success": True,
+                "decision": "REJECTED ❌",
+                "new_state": new_state,
+                "ai_report": ai_report,
+                "message": "AI validation failed. Returning to demand."
+            }
+    
+    except HTTPException:
+        raise
+    except InvalidTransitionError as e:
+        print(f"❌ InvalidTransitionError: {e}")
+        raise HTTPException(status_code=400, detail=str(e))
+    except Exception as e:
+        print(f"❌ Unexpected error: {type(e).__name__}: {e}")
+        import traceback
+        traceback.print_exc()
+        raise HTTPException(status_code=500, detail=f"{type(e).__name__}: {str(e)}")
 #
 # ============================================================================
 # UTILITY ROUTES
