@@ -7,6 +7,7 @@ from pydantic import BaseModel
 from typing import Dict, Any, List, Optional
 import sys
 import os
+import sqlite3
 
 # Import FSM engine
 sys.path.append(os.path.dirname(__file__))
@@ -119,6 +120,100 @@ async def get_sensor_diagram(capteur_id: str):  # ✅ Changed from int to str
 # ============================================================================
 # INTERVENTION FSM ROUTES
 # ============================================================================
+@router.post("/interventions/create-for-sensor/{capteur_id}")
+async def create_intervention_for_sensor(capteur_id: str):
+    """Create a new intervention for a sensor in en_maintenance"""
+    if fsm_manager is None:
+        raise HTTPException(status_code=500, detail="FSM manager not initialized")
+    
+    try:
+        conn = sqlite3.connect(fsm_manager.db_path)
+        cursor = conn.cursor()
+        
+        # Check if sensor exists and is in en_maintenance
+        cursor.execute(
+            "SELECT capteur_id, statut FROM capteurs WHERE capteur_id = ?",
+            (capteur_id,)
+        )
+        sensor = cursor.fetchone()
+        
+        if not sensor:
+            conn.close()
+            print(f"❌ Sensor {capteur_id} not found in database")
+            raise HTTPException(status_code=404, detail=f"Sensor {capteur_id} not found")
+        
+        sensor_id, sensor_status = sensor[0], sensor[1]
+        print(f"🔍 Sensor {sensor_id} current status: '{sensor_status}'")
+        
+        if sensor_status != 'en_maintenance':
+            conn.close()
+            print(f"❌ Sensor {capteur_id} status is '{sensor_status}', expected 'en_maintenance'")
+            raise HTTPException(status_code=400, detail=f"Sensor {capteur_id} is in '{sensor_status}' state, not 'en_maintenance'")
+        
+        # Create new intervention
+        cursor.execute(
+            """INSERT INTO interventions (capteur_id, statut, date_demande)
+               VALUES (?, 'demande', datetime('now'))""",
+            (capteur_id,)
+        )
+        conn.commit()
+        
+        intervention_id = cursor.lastrowid
+        print(f"✅ Created intervention {intervention_id} for sensor {capteur_id}")
+        conn.close()
+        
+        return {
+            "success": True,
+            "intervention_id": intervention_id,
+            "capteur_id": capteur_id,
+            "message": f"Intervention created for sensor {capteur_id}"
+        }
+    except HTTPException:
+        raise
+    except Exception as e:
+        print(f"❌ Error creating intervention: {type(e).__name__}: {e}")
+        import traceback
+        traceback.print_exc()
+        raise HTTPException(status_code=500, detail=f"{type(e).__name__}: {str(e)}")
+
+
+@router.get("/interventions/pending")
+async def get_pending_interventions():
+    """Get all pending interventions for sensors in en_maintenance state"""
+    if fsm_manager is None:
+        raise HTTPException(status_code=500, detail="FSM manager not initialized")
+    
+    try:
+        conn = sqlite3.connect(fsm_manager.db_path)
+        cursor = conn.cursor()
+        
+        # Get all sensors that are in en_maintenance state
+        cursor.execute(
+            """SELECT c.capteur_id, c.type_capteur, c.zone_id
+               FROM capteurs c
+               WHERE c.statut = ?
+               ORDER BY c.capteur_id DESC""",
+            ('en_maintenance',)
+        )
+        
+        rows = cursor.fetchall()
+        sensors = []
+        for row in rows:
+            sensors.append({
+                'capteur_id': row[0],
+                'type_capteur': row[1],
+                'zone_id': row[2]
+            })
+        
+        conn.close()
+        
+        return {
+            "pending_sensors": sensors,
+            "count": len(sensors)
+        }
+    except Exception as e:
+        print(f"Error in get_pending_interventions: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
 
 @router.get("/interventions/{intervention_id}/state", response_model=FSMStateResponse)
 async def get_intervention_state(intervention_id: str):  # ✅ Changed from int to str
@@ -145,18 +240,36 @@ async def get_intervention_state(intervention_id: str):  # ✅ Changed from int 
 
 
 @router.post("/interventions/{intervention_id}/trigger", response_model=TransitionResponse)
-async def trigger_intervention_event(intervention_id: str, request: InterventionEventRequest):  # ✅ Changed from int to str
+async def trigger_intervention_event(intervention_id: str, request: InterventionEventRequest):
     """Trigger an event on an intervention FSM"""
     if fsm_manager is None:
         raise HTTPException(status_code=500, detail="FSM manager not initialized")
     
     try:
-        intervention_id = int(intervention_id)  # ✅ Convert to int for DB lookup
+        intervention_id = int(intervention_id)
         new_state = fsm_manager.trigger_intervention_event(
             intervention_id,
             request.event,
             request.context
         )
+        
+        # If intervention is completed, clear both caches so they reload from DB
+        if new_state == 'termine':
+            try:
+                conn = sqlite3.connect(fsm_manager.db_path)
+                cursor = conn.cursor()
+                cursor.execute("SELECT capteur_id FROM interventions WHERE intervention_id = ?", (intervention_id,))
+                result = cursor.fetchone()
+                conn.close()
+                
+                if result:
+                    capteur_id = result[0]
+                    # Clear caches to force reload from DB
+                    fsm_manager.clear_sensor_cache(capteur_id)
+                    fsm_manager.clear_intervention_cache(intervention_id)
+                    print(f"✅ Cleared cache for sensor {capteur_id} - intervention {intervention_id} completed")
+            except Exception as e:
+                print(f"Error clearing cache: {e}")
         
         return TransitionResponse(
             success=True,
@@ -192,13 +305,13 @@ async def get_intervention_diagram(intervention_id: str):  # ✅ Changed from in
 # ============================================================================
 
 @router.get("/vehicles/{vehicule_id}/state", response_model=FSMStateResponse)
-async def get_vehicle_state(vehicule_id: str):  # ✅ Changed from int to str
+async def get_vehicle_state(vehicule_id: str):  # ✅ Keep as str
     """Get current state and valid transitions for a vehicle"""
     if fsm_manager is None:
         raise HTTPException(status_code=500, detail="FSM manager not initialized")
     
     try:
-        vehicule_id = int(vehicule_id)  # ✅ Convert to int for DB lookup
+        # Keep as string - vehicles use VARCHAR IDs
         fsm = fsm_manager.get_vehicle_fsm(vehicule_id)
         valid_transitions = [t.event for t in fsm.get_valid_transitions({'vehicule_id': vehicule_id})]
         
@@ -209,22 +322,20 @@ async def get_vehicle_state(vehicule_id: str):  # ✅ Changed from int to str
             valid_transitions=valid_transitions,
             history=fsm.history[-10:]
         )
-    except ValueError:
-        raise HTTPException(status_code=400, detail="Invalid vehicle ID format")
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
 
 
 @router.post("/vehicles/{vehicule_id}/trigger", response_model=TransitionResponse)
-async def trigger_vehicle_event(vehicule_id: str, request: VehicleEventRequest):  # ✅ Keep as str
+async def trigger_vehicle_event(vehicule_id: str, request: VehicleEventRequest):
     """Trigger an event on a vehicle FSM"""
     if fsm_manager is None:
         raise HTTPException(status_code=500, detail="FSM manager not initialized")
     
     try:
-        # Don't convert - keep as string if vehicles use VARCHAR IDs
+        # Keep as string - vehicles use VARCHAR IDs
         new_state = fsm_manager.trigger_vehicle_event(
-            vehicule_id,  # ✅ Pass as-is
+            vehicule_id,  # ✅ Pass as string
             request.event,
             request.context
         )
@@ -243,20 +354,18 @@ async def trigger_vehicle_event(vehicule_id: str, request: VehicleEventRequest):
 
 
 @router.get("/vehicles/{vehicule_id}/diagram")
-async def get_vehicle_diagram(vehicule_id: str):  # ✅ Changed from int to str
+async def get_vehicle_diagram(vehicule_id: str):
     """Get textual FSM diagram for a vehicle"""
     if fsm_manager is None:
         raise HTTPException(status_code=500, detail="FSM manager not initialized")
     
     try:
-        vehicule_id = int(vehicule_id)  # ✅ Convert to int for DB lookup
+        # Keep as string - vehicles use VARCHAR IDs
         fsm = fsm_manager.get_vehicle_fsm(vehicule_id)
         return {"diagram": fsm.get_state_diagram()}
-    except ValueError:
-        raise HTTPException(status_code=400, detail="Invalid vehicle ID format")
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
-
+#
 # ============================================================================
 # UTILITY ROUTES
 # ============================================================================

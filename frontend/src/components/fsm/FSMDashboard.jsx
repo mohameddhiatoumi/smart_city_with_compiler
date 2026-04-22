@@ -56,9 +56,15 @@ const FSMDashboard = ({ onClose }) => {
   };
 
   // Handle entity selection change
+
+    
   const handleEntityChange = (type, id) => {
     setEntityType(type);
     setEntityId(id);
+    // Force immediate refresh when switching entity
+    setTimeout(() => {
+      fetchFSMState(type, id);
+    }, 50);
   };
 
   // Trigger event*
@@ -91,10 +97,14 @@ const FSMDashboard = ({ onClose }) => {
   // Initial fetch and auto-refresh
   useEffect(() => {
     if (entityId) {
+      // Fetch immediately with current entityType and entityId
       fetchFSMState(entityType, entityId);
+      
+      // Auto-refresh every 3 seconds
       const interval = setInterval(() => {
         fetchFSMState(entityType, entityId);
-      }, 5000); // Refresh every 5 seconds
+      }, 3000);
+      
       return () => clearInterval(interval);
     }
   }, [entityType, entityId]);

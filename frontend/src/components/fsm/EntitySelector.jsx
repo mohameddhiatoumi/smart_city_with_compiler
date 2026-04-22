@@ -19,13 +19,43 @@ const EntitySelector = ({ onEntityChange }) => {
             setEntityId(data[0].capteur_id);
             onEntityChange(entityType, data[0].capteur_id);
           }
-        } else if (entityType === 'intervention') {
-          // Interventions would come from API
-          setEntities([
-            { id: 1, name: 'Intervention 1' },
-            { id: 2, name: 'Intervention 2' },
-            { id: 3, name: 'Intervention 3' },
-          ]);
+                   } else if (entityType === 'intervention') {
+          // Fetch pending interventions (sensors in en_maintenance)
+          try {
+            const response = await fetch('http://localhost:8000/fsm/interventions/pending');
+            const data = await response.json();
+            
+            // For each sensor, create or get an intervention
+            const interventionOptions = [];
+            for (const sensor of data.pending_sensors) {
+              try {
+                // Create new intervention for this sensor
+                const createResponse = await fetch(
+                  `http://localhost:8000/fsm/interventions/create-for-sensor/${sensor.capteur_id}`,
+                  { method: 'POST' }
+                );
+                const interventionData = await createResponse.json();
+                
+                if (interventionData.success) {
+                  interventionOptions.push({
+                    id: interventionData.intervention_id,  // Use intervention_id (integer)
+                    name: `Sensor: ${sensor.capteur_id} (${sensor.type_capteur})`
+                  });
+                }
+              } catch (error) {
+                console.error(`Failed to create intervention for ${sensor.capteur_id}:`, error);
+              }
+            }
+            
+            setEntities(interventionOptions);
+            if (interventionOptions.length > 0 && !entityId) {
+              setEntityId(interventionOptions[0].id);
+              onEntityChange('intervention', interventionOptions[0].id);
+            }
+          } catch (error) {
+            console.error('Failed to fetch pending interventions:', error);
+            setEntities([]);
+          }
         } else if (entityType === 'vehicle') {
           // Vehicles would come from API
           setEntities([
@@ -56,11 +86,17 @@ const EntitySelector = ({ onEntityChange }) => {
     onEntityChange(entityType, newId);
   };
 
-  const getEntityIdField = () => {
+      const getEntityIdField = () => {
     if (entityType === 'sensor' && entities.length > 0) {
       return entities.map((sensor) => (
         <option key={sensor.capteur_id} value={sensor.capteur_id}>
           Sensor {sensor.capteur_id} - {sensor.type_capteur}
+        </option>
+      ));
+    } else if (entityType === 'intervention' && entities.length > 0) {
+      return entities.map((intervention) => (
+        <option key={intervention.id} value={intervention.id}>
+          {intervention.name}
         </option>
       ));
     }

@@ -1,6 +1,6 @@
 """
 Finite State Machine Engine for Neo-Sousse 2030
-Implements sensor lifecycle, intervention workflow, and vehicle journey FSMs
+Implements the correct sensor, intervention, and vehicle FSMs based on handmade diagrams
 """
 
 from enum import Enum
@@ -9,7 +9,7 @@ from dataclasses import dataclass
 from datetime import datetime
 import sqlite3
 import json
-import time 
+import time
 
 
 class FSMError(Exception):
@@ -22,19 +22,14 @@ class InvalidTransitionError(FSMError):
     pass
 
 
-class InvalidStateError(FSMError):
-    """Raised when current state is invalid"""
-    pass
-
-
 @dataclass
 class Transition:
     """Represents a state transition"""
     from_state: str
     to_state: str
     event: str
-    condition: Optional[Callable] = None  # Optional guard condition
-    action: Optional[Callable] = None     # Optional action to execute
+    condition: Optional[Callable] = None
+    action: Optional[Callable] = None
     
     def can_execute(self, context: Dict[str, Any]) -> bool:
         """Check if transition can be executed given the context"""
@@ -68,7 +63,6 @@ class StateMachine:
                       condition: Optional[Callable] = None,
                       action: Optional[Callable] = None) -> None:
         """Add a transition between states"""
-        # Ensure states exist
         self.add_state(from_state)
         self.add_state(to_state)
         
@@ -86,16 +80,6 @@ class StateMachine:
                 if trans.can_execute(context):
                     valid.append(trans)
         return valid
-    
-    def can_transition(self, event: str, context: Dict[str, Any] = None) -> bool:
-        """Check if a transition is possible for given event"""
-        if context is None:
-            context = {}
-            
-        for trans in self.get_valid_transitions(context):
-            if trans.event == event:
-                return True
-        return False
     
     def trigger(self, event: str, context: Dict[str, Any] = None) -> str:
         """Trigger an event and transition to new state"""
@@ -135,415 +119,484 @@ class StateMachine:
         
         return self.current_state
     
-    def reset(self) -> None:
-        """Reset to initial state"""
-        self.current_state = self.initial_state
-        self.history.clear()
-    
     def get_state_diagram(self) -> str:
         """Generate a textual representation of the FSM"""
-        lines = [f"=== {self.name} FSM ==="]
+        lines = [f"\n=== {self.name} FSM ==="]
         lines.append(f"Current State: {self.current_state}")
         lines.append(f"States: {', '.join(self.states)}")
         lines.append("\nTransitions:")
         
         for trans in self.transitions:
-            guard = " [guarded]" if trans.condition else ""
-            action = " (with action)" if trans.action else ""
-            lines.append(f"  {trans.from_state} --[{trans.event}]--> {trans.to_state}{guard}{action}")
+            lines.append(f"  {trans.from_state} --[{trans.event}]--> {trans.to_state}")
         
         return "\n".join(lines)
 
-
 # ============================================================================
-# SENSOR LIFECYCLE FSM
+# HELPER FUNCTIONS
 # ============================================================================
 
-class SensorState(str, Enum):
-    INACTIF = "inactif"
-    ACTIF = "actif"
-    SIGNALE = "signale"
-    EN_MAINTENANCE = "en_maintenance"
-    HORS_SERVICE = "hors_service"
+def generate_corrected_sensor_value(type_capteur: str, current_value: float) -> float:
+    """Generate a corrected sensor value based on type"""
+    import random
+    
+    if type_capteur == 'air':
+        return round(random.uniform(25, 45), 2)
+    elif type_capteur == 'bruit':
+        return round(random.uniform(50, 65), 2)
+    elif type_capteur == 'trafic':
+        return round(random.uniform(150, 400), 2)
+    else:
+        return round(current_value * 0.95, 2)
 
 
-class SensorEvent(str, Enum):
-    INSTALLER = "installer"
-    ACTIVER = "activer"
-    DETECTER_ANOMALIE = "detecter_anomalie"
-    COMMENCER_REPARATION = "commencer_reparation"
-    TERMINER_REPARATION = "terminer_reparation"
-    DECLARER_HORS_SERVICE = "declarer_hors_service"
-    REACTIVER = "reactiver"
-
+def validate_sensor_with_ai(temp_value: float, original_value: float, type_capteur: str, type_mesure: str) -> tuple:
+    """AI validation with human-readable report"""
+    
+    if temp_value is None:
+        return False, "❌ Cannot validate: no corrected value available"
+    
+    is_valid = True
+    reasons = []
+    
+    if type_capteur == 'air':
+        if 10 <= temp_value <= 200:
+            reasons.append(f"✅ Air quality value ({temp_value}) is within normal range")
+        else:
+            reasons.append(f"❌ Air quality value ({temp_value}) exceeds normal range")
+            is_valid = False
+    
+    elif type_capteur == 'bruit':
+        if 30 <= temp_value <= 90:
+            reasons.append(f"✅ Noise level ({temp_value} dB) is acceptable")
+        else:
+            reasons.append(f"❌ Noise level ({temp_value} dB) is abnormal")
+            is_valid = False
+    
+    elif type_capteur == 'trafic':
+        if 0 <= temp_value <= 10000:
+            reasons.append(f"✅ Traffic count ({int(temp_value)} vehicles) is reasonable")
+        else:
+            reasons.append(f"❌ Traffic count is unusually high")
+            is_valid = False
+    
+    if original_value and original_value != 0:
+        change_percent = abs(temp_value - original_value) / abs(original_value) * 100
+        if change_percent < 300:
+            reasons.append(f"✅ Correction is reasonable ({change_percent:.1f}% change)")
+        else:
+            reasons.append(f"⚠️ Large correction ({change_percent:.1f}% change) - but acceptable")
+    
+    report = "🤖 AI Validation Report:\n"
+    report += f"Sensor Type: {type_capteur}\n"
+    report += f"Measurement Type: {type_mesure}\n"
+    report += f"Original Value: {original_value}\n"
+    report += f"Corrected Value: {temp_value}\n\n"
+    report += "Validation Results:\n"
+    report += "\n".join(reasons)
+    report += f"\n\n{'✅ VALIDATION PASSED - Sensor maintenance approved!' if is_valid else '❌ VALIDATION FAILED - Please retry'}"
+    
+    return is_valid, report
+# ============================================================================
+# SENSOR LIFECYCLE FSM - CORRECTED FROM HANDMADE DIAGRAM
+# ============================================================================
 
 def create_sensor_fsm(db_path: str, capteur_id: str) -> StateMachine:
-    """Create a sensor lifecycle FSM"""
+    """Create a sensor lifecycle FSM with correct transitions"""
     
-    def update_sensor_status(context: Dict[str, Any]) -> None:
+    def update_capteur_status(context: Dict[str, Any]) -> None:
         """Update sensor status in database"""
-        conn = sqlite3.connect(db_path)
-        cursor = conn.cursor()
-        cursor.execute(
-            "UPDATE capteurs SET statut = ? WHERE capteur_id = ?",
-            (context['new_status'], context['capteur_id'])
-        )
-        conn.commit()
-        conn.close()
+        try:
+            conn = sqlite3.connect(db_path)
+            cursor = conn.cursor()
+            cursor.execute(
+                "UPDATE capteurs SET statut = ? WHERE capteur_id = ?",
+                (context['new_status'], context['capteur_id'])
+            )
+            conn.commit()
+            conn.close()
+        except Exception as e:
+            print(f"Error updating capteur status: {e}")
     
-    def create_intervention(context: Dict[str, Any]) -> None:
-        """Create intervention request when sensor is flagged"""
-        conn = sqlite3.connect(db_path)
-        cursor = conn.cursor()
-        cursor.execute(
-            """INSERT INTO interventions (capteur_id, statut, date_demande)
-               VALUES (?, 'demande', datetime('now'))""",
-            (context['capteur_id'],)
-        )
-        conn.commit()
-        conn.close()
-    
-    def check_error_threshold(context: Dict[str, Any]) -> bool:
-        """Check if error rate exceeds threshold"""
-        conn = sqlite3.connect(db_path)
-        cursor = conn.cursor()
-        cursor.execute(
-            "SELECT taux_erreur FROM capteurs WHERE capteur_id = ?",
-            (context['capteur_id'],)
-        )
-        result = cursor.fetchone()
-        conn.close()
-        
-        if result:
-            return result[0] > 15.0  # 15% threshold
-        return False
-    
-    # Create FSM
-    fsm = StateMachine(name=f"Sensor_{capteur_id}", initial_state=SensorState.INACTIF)
+    fsm = StateMachine(name=f"Capteur_{capteur_id}", initial_state="inactif")
     
     # Add all states
-    for state in SensorState:
-        fsm.add_state(state.value)
+    states = ["inactif", "actif", "signale", "en_maintenance", "hors_service"]
+    for state in states:
+        fsm.add_state(state)
     
-    # Define transitions
-    # INACTIF -> ACTIF (installation and activation)
-    fsm.add_transition(
-        SensorState.INACTIF, SensorState.ACTIF, SensorEvent.ACTIVER,
-        action=lambda ctx: update_sensor_status({**ctx, 'new_status': 'actif'})
-    )
+    # INACTIF transitions
+    fsm.add_transition("inactif", "actif", "installation",
+                      action=lambda ctx: update_capteur_status({**ctx, 'new_status': 'actif'}))
+    fsm.add_transition("inactif", "hors_service", "panne_critique",
+                      action=lambda ctx: update_capteur_status({**ctx, 'new_status': 'hors_service'}))
     
-    # ACTIF -> SIGNALE (anomaly detected)
-    fsm.add_transition(
-        SensorState.ACTIF, SensorState.SIGNALE, SensorEvent.DETECTER_ANOMALIE,
-        condition=check_error_threshold,
-        action=lambda ctx: [
-            update_sensor_status({**ctx, 'new_status': 'signale'}),
-            create_intervention(ctx)
-        ]
-    )
+    # ACTIF transitions
+    fsm.add_transition("actif", "signale", "détection_anomalie",
+                      action=lambda ctx: update_capteur_status({**ctx, 'new_status': 'signale'}))
+    fsm.add_transition("actif", "hors_service", "panne_critique",
+                      action=lambda ctx: update_capteur_status({**ctx, 'new_status': 'hors_service'}))
     
-    # SIGNALE -> EN_MAINTENANCE (repair started)
-    fsm.add_transition(
-        SensorState.SIGNALE, SensorState.EN_MAINTENANCE, SensorEvent.COMMENCER_REPARATION,
-        action=lambda ctx: update_sensor_status({**ctx, 'new_status': 'en_maintenance'})
-    )
+    # SIGNALÉ transitions
+    fsm.add_transition("signale", "hors_service", "panne_critique",
+                      action=lambda ctx: update_capteur_status({**ctx, 'new_status': 'hors_service'}))
+    fsm.add_transition("signale", "en_maintenance", "panne_reparable",
+                      action=lambda ctx: update_capteur_status({**ctx, 'new_status': 'en_maintenance'}))
+    fsm.add_transition("signale", "actif", "réparation",
+                      action=lambda ctx: update_capteur_status({**ctx, 'new_status': 'actif'}))
     
-    # EN_MAINTENANCE -> ACTIF (repair successful)
-    fsm.add_transition(
-        SensorState.EN_MAINTENANCE, SensorState.ACTIF, SensorEvent.TERMINER_REPARATION,
-        action=lambda ctx: update_sensor_status({**ctx, 'new_status': 'actif'})
-    )
+    # EN_MAINTENANCE transitions
+    fsm.add_transition("en_maintenance", "hors_service", "panne_critique",
+                      action=lambda ctx: update_capteur_status({**ctx, 'new_status': 'hors_service'}))
+    fsm.add_transition("en_maintenance", "actif", "réparation",
+                      action=lambda ctx: update_capteur_status({**ctx, 'new_status': 'actif'}))
     
-    # EN_MAINTENANCE -> HORS_SERVICE (irreparable)
-    fsm.add_transition(
-        SensorState.EN_MAINTENANCE, SensorState.HORS_SERVICE, SensorEvent.DECLARER_HORS_SERVICE,
-        action=lambda ctx: update_sensor_status({**ctx, 'new_status': 'hors_service'})
-    )
-    
-    # SIGNALE -> ACTIF (false alarm, reactivate)
-    fsm.add_transition(
-        SensorState.SIGNALE, SensorState.ACTIF, SensorEvent.REACTIVER,
-        action=lambda ctx: update_sensor_status({**ctx, 'new_status': 'actif'})
-    )
-    
-    # ACTIF -> HORS_SERVICE (critical failure)
-    fsm.add_transition(
-        SensorState.ACTIF, SensorState.HORS_SERVICE, SensorEvent.DECLARER_HORS_SERVICE,
-        action=lambda ctx: update_sensor_status({**ctx, 'new_status': 'hors_service'})
-    )
+    # HORS_SERVICE transitions
+    fsm.add_transition("hors_service", "inactif", "installation",
+                      action=lambda ctx: update_capteur_status({**ctx, 'new_status': 'inactif'}))
     
     return fsm
 
 
 # ============================================================================
-# INTERVENTION WORKFLOW FSM
+# INTERVENTION WORKFLOW FSM - CORRECTED FROM HANDMADE DIAGRAM
 # ============================================================================
 
-class InterventionState(str, Enum):
-    DEMANDE = "demande"
-    TECH1_ASSIGNE = "tech1_assigne"
-    TECH2_VALIDE = "tech2_valide"
-    IA_VALIDE = "ia_valide"
-    TERMINE = "termine"
-    ANNULE = "annule"
-
-
-class InterventionEvent(str, Enum):
-    ASSIGNER_TECH1 = "assigner_tech1"
-    TECH2_VALIDER = "tech2_valider"
-    IA_VALIDER = "ia_valider"
-    TERMINER = "terminer"
-    ANNULER = "annuler"
-
-
 def create_intervention_fsm(db_path: str, intervention_id: int) -> StateMachine:
-    """Create an intervention workflow FSM"""
+    """Create an intervention workflow FSM with correct transitions"""
     
     def update_intervention_status(context: Dict[str, Any]) -> None:
         """Update intervention status in database"""
-        conn = sqlite3.connect(db_path)
-        cursor = conn.cursor()
-        
-        updates = ["statut = ?"]
-        params = [context['new_status']]
-        
-        if 'tech1_id' in context:
-            updates.append("technicien1_id = ?")
-            params.append(context['tech1_id'])
-        
-        if 'tech2_id' in context:
-            updates.append("technicien2_id = ?")
-            params.append(context['tech2_id'])
-        
-        if 'validation_ia' in context:
-            updates.append("validation_ia = ?")
-            params.append(context['validation_ia'])
-        
-        if context['new_status'] == 'termine':
-            updates.append("date_terminaison = datetime('now')")
-        
-        params.append(context['intervention_id'])
-        
-        query = f"UPDATE interventions SET {', '.join(updates)} WHERE intervention_id = ?"
-        cursor.execute(query, params)
-        conn.commit()
-        conn.close()
+        try:
+            conn = sqlite3.connect(db_path)
+            cursor = conn.cursor()
+            
+            updates = ["statut = ?"]
+            params = [context['new_status']]
+            
+            if 'technicien1_id' in context:
+                updates.append("technicien1_id = ?")
+                params.append(context['technicien1_id'])
+            
+            if 'technicien2_id' in context:
+                updates.append("technicien2_id = ?")
+                params.append(context['technicien2_id'])
+            
+            if 'validation_ia' in context:
+                updates.append("validation_ia = ?")
+                params.append(context['validation_ia'])
+            
+            if 'ai_report' in context:
+                updates.append("description = ?")
+                params.append(context['ai_report'])
+            
+            if context['new_status'] == 'termine':
+                updates.append("date_terminaison = datetime('now')")
+            
+            params.append(context['intervention_id'])
+            
+            query = f"UPDATE interventions SET {', '.join(updates)} WHERE intervention_id = ?"
+            cursor.execute(query, params)
+            conn.commit()
+            conn.close()
+        except Exception as e:
+            print(f"Error updating intervention status: {e}")
     
-    def check_technician_available(context: Dict[str, Any]) -> bool:
-        """Check if assigned technician is available"""
-        if 'tech1_id' not in context and 'tech2_id' not in context:
-            return False
-        
-        conn = sqlite3.connect(db_path)
-        cursor = conn.cursor()
-        tech_id = context.get('tech1_id') or context.get('tech2_id')
-        cursor.execute(
-            "SELECT disponible FROM techniciens WHERE technicien_id = ?",
-            (tech_id,)
-        )
-        result = cursor.fetchone()
-        conn.close()
-        
-        return result[0] == 1 if result else False
+    def generate_temp_value(context: Dict[str, Any]) -> None:
+        """Generate corrected sensor value and store temporarily"""
+        try:
+            conn = sqlite3.connect(db_path)
+            cursor = conn.cursor()
+            
+            cursor.execute(
+                """SELECT c.capteur_id, c.type_capteur, m.valeur, m.type_mesure 
+                   FROM interventions i
+                   JOIN capteurs c ON i.capteur_id = c.capteur_id
+                   LEFT JOIN mesures m ON c.capteur_id = m.capteur_id
+                   WHERE i.intervention_id = ?
+                   ORDER BY m.timestamp DESC LIMIT 1""",
+                (context['intervention_id'],)
+            )
+            result = cursor.fetchone()
+            
+            if result:
+                capteur_id = result[0]
+                type_capteur = result[1]
+                current_value = result[2] if result[2] else 0
+                type_mesure = result[3] if result[3] else "unknown"
+                
+                corrected_value = generate_corrected_sensor_value(type_capteur, current_value)
+                
+                temp_data = {
+                    'temp_value': corrected_value,
+                    'original_value': current_value,
+                    'type_capteur': type_capteur,
+                    'type_mesure': type_mesure,
+                    'generated_at': datetime.now().isoformat()
+                }
+                
+                cursor.execute(
+                    "UPDATE interventions SET description = ? WHERE intervention_id = ?",
+                    (json.dumps(temp_data), context['intervention_id'])
+                )
+                conn.commit()
+            
+            conn.close()
+        except Exception as e:
+            print(f"Error generating temp value: {e}")
     
-    # Create FSM
-    fsm = StateMachine(name=f"Intervention_{intervention_id}", initial_state=InterventionState.DEMANDE)
+    def ai_validate_sensor(context: Dict[str, Any]) -> None:
+        """AI validates the temp value and generates report"""
+        conn = None
+        try:
+            conn = sqlite3.connect(db_path, timeout=10)
+            cursor = conn.cursor()
+            
+            # Get temp data
+            cursor.execute(
+                "SELECT capteur_id, description FROM interventions WHERE intervention_id = ?",
+                (context['intervention_id'],)
+            )
+            result = cursor.fetchone()
+            
+            if result:
+                capteur_id = result[0]
+                description_json = result[1]
+                
+                temp_data = json.loads(description_json) if description_json else {}
+                temp_value = temp_data.get('temp_value')
+                original_value = temp_data.get('original_value')
+                type_capteur = temp_data.get('type_capteur')
+                type_mesure = temp_data.get('type_mesure')
+                
+                # AI Validation
+                is_valid, ai_report = validate_sensor_with_ai(
+                    temp_value=temp_value,
+                    original_value=original_value,
+                    type_capteur=type_capteur,
+                    type_mesure=type_mesure
+                )
+                
+                # Store AI report
+                validation_data = {
+                    'is_valid': is_valid,
+                    'ai_report': ai_report,
+                    'temp_value': temp_value,
+                    'original_value': original_value,
+                    'validated_at': datetime.now().isoformat()
+                }
+                
+                # Update intervention with AI report
+                cursor.execute(
+                    "UPDATE interventions SET description = ?, validation_ia = ? WHERE intervention_id = ?",
+                    (json.dumps(validation_data), 1 if is_valid else 0, context['intervention_id'])
+                )
+                
+                # If valid, update sensor value using subquery
+                if is_valid:
+                    cursor.execute(
+                        """UPDATE mesures SET valeur = ? 
+                        WHERE mesure_id = (
+                            SELECT mesure_id FROM mesures 
+                            WHERE capteur_id = ? 
+                            ORDER BY timestamp DESC LIMIT 1
+                        )""",
+                        (temp_value, capteur_id)
+                    )
+                
+                conn.commit()
+                
+                # Store in context
+                context['ai_report'] = ai_report
+                context['is_valid'] = is_valid
+                context['validation_ia'] = 1 if is_valid else 0
+            
+        except Exception as e:
+            print(f"Error in AI validation: {e}")
+            if conn:
+                conn.rollback()
+        finally:
+            if conn:
+                conn.close()
     
-    # Add all states
-    for state in InterventionState:
-        fsm.add_state(state.value)
+    def update_sensor_to_actif(context: Dict[str, Any]) -> None:
+        """Update sensor from en_maintenance to actif"""
+        conn = None
+        try:
+            conn = sqlite3.connect(db_path, timeout=10)
+            cursor = conn.cursor()
+            
+            # Get capteur_id from intervention
+            cursor.execute(
+                "SELECT capteur_id FROM interventions WHERE intervention_id = ?",
+                (context['intervention_id'],)
+            )
+            result = cursor.fetchone()
+            
+            if result:
+                capteur_id = result[0]
+                print(f"🔄 Updating sensor {capteur_id} from en_maintenance to actif")
+                
+                # Update sensor status to actif
+                cursor.execute(
+                    "UPDATE capteurs SET statut = 'actif' WHERE capteur_id = ?",
+                    (capteur_id,)
+                )
+                conn.commit()
+                print(f"✅ Sensor {capteur_id} updated to actif")
+            
+        except Exception as e:
+            print(f"Error updating sensor status: {e}")
+            if conn:
+                conn.rollback()
+        finally:
+            if conn:
+                conn.close()
     
-    # Define transitions
-    # DEMANDE -> TECH1_ASSIGNE
-    fsm.add_transition(
-        InterventionState.DEMANDE, InterventionState.TECH1_ASSIGNE, 
-        InterventionEvent.ASSIGNER_TECH1,
-        condition=check_technician_available,
-        action=lambda ctx: update_intervention_status({**ctx, 'new_status': 'tech1_assigne'})
-    )
+    fsm = StateMachine(name=f"Intervention_{intervention_id}", initial_state="demande")
     
-    # TECH1_ASSIGNE -> TECH2_VALIDE
-    fsm.add_transition(
-        InterventionState.TECH1_ASSIGNE, InterventionState.TECH2_VALIDE,
-        InterventionEvent.TECH2_VALIDER,
-        action=lambda ctx: update_intervention_status({**ctx, 'new_status': 'tech2_valide'})
-    )
+    states = ["demande", "tech1_assigne", "tech2_valide", "ia_valide", "termine"]
+    for state in states:
+        fsm.add_state(state)
     
-    # TECH2_VALIDE -> IA_VALIDE
-    fsm.add_transition(
-        InterventionState.TECH2_VALIDE, InterventionState.IA_VALIDE,
-        InterventionEvent.IA_VALIDER,
-        action=lambda ctx: update_intervention_status({**ctx, 'new_status': 'ia_valide'})
-    )
+    # DEMANDE → TECH1_ASSIGNÉ
+    fsm.add_transition("demande", "tech1_assigne", "assigner_tech1",
+                      action=lambda ctx: update_intervention_status({**ctx, 'new_status': 'tech1_assigne'}))
     
-    # IA_VALIDE -> TERMINE
-    fsm.add_transition(
-        InterventionState.IA_VALIDE, InterventionState.TERMINE,
-        InterventionEvent.TERMINER,
-        action=lambda ctx: update_intervention_status({**ctx, 'new_status': 'termine'})
-    )
+    # TECH1_ASSIGNÉ → TECH2_VALIDE (generates temp value in background)
+    fsm.add_transition("tech1_assigne", "tech2_valide", "valide_tech2",
+                      action=lambda ctx: [
+                          generate_temp_value(ctx),
+                          update_intervention_status({**ctx, 'new_status': 'tech2_valide'})
+                      ])
+    fsm.add_transition("tech1_assigne", "demande", "rejeter",
+                      action=lambda ctx: update_intervention_status({**ctx, 'new_status': 'demande'}))
     
-    # Any state -> ANNULE (except TERMINE)
-    for state in [InterventionState.DEMANDE, InterventionState.TECH1_ASSIGNE, 
-                  InterventionState.TECH2_VALIDE, InterventionState.IA_VALIDE]:
-        fsm.add_transition(
-            state, InterventionState.ANNULE, InterventionEvent.ANNULER,
-            action=lambda ctx: update_intervention_status({**ctx, 'new_status': 'annule'})
-        )
+    # TECH2_VALIDE → IA_VALIDE (AI validates in background)
+    fsm.add_transition("tech2_valide", "ia_valide", "valide_ia",
+                      action=lambda ctx: [
+                          ai_validate_sensor(ctx),
+                          update_intervention_status({**ctx, 'new_status': 'ia_valide'})
+                      ])
+    fsm.add_transition("tech2_valide", "demande", "rejeter",
+                      action=lambda ctx: update_intervention_status({**ctx, 'new_status': 'demande'}))
+    
+    # IA_VALIDE → TERMINÉ (updates sensor to actif)
+    fsm.add_transition("ia_valide", "termine", "terminer",
+                      action=lambda ctx: [
+                          update_sensor_to_actif(ctx),
+                          update_intervention_status({**ctx, 'new_status': 'termine', 'validation_ia': 1})
+                      ])
     
     return fsm
 
-
 # ============================================================================
-# VEHICLE JOURNEY FSM
+# VEHICLE JOURNEY FSM - CORRECTED FROM HANDMADE DIAGRAM
 # ============================================================================
-
-class VehicleState(str, Enum):
-    STATIONNE = "stationne"
-    EN_ROUTE = "en_route"
-    EN_PANNE = "en_panne"
-    ARRIVE = "arrive"
-
-
-class VehicleEvent(str, Enum):
-    DEMARRER = "demarrer"
-    TOMBER_EN_PANNE = "tomber_en_panne"
-    REPARER = "reparer"
-    ARRIVER = "arriver"
-    STATIONNER = "stationner"
-
-
-def create_vehicle_fsm(db_path: str, vehicule_id: str) -> StateMachine:  # ✅ Changed to str
-    """Create a vehicle journey FSM"""
+def create_vehicle_fsm(db_path: str, vehicule_id: str) -> StateMachine:
+    """Create a vehicle journey FSM with correct transitions"""
     
-    def update_vehicle_status(context: Dict[str, Any]) -> None:
-        """Update vehicle status in database with retry logic"""
-        max_retries = 3
-        retry_delay = 0.1
-        
-        for attempt in range(max_retries):
-            try:
-                conn = sqlite3.connect(db_path, timeout=10)  # ✅ Add timeout
-                cursor = conn.cursor()
-                cursor.execute(
-                    "UPDATE vehicules SET statut = ? WHERE vehicule_id = ?",
-                    (context['new_status'], context['vehicule_id'])
-                )
-                conn.commit()
-                conn.close()
-                return  # Success
-            except sqlite3.OperationalError as e:
-                if "database is locked" in str(e) and attempt < max_retries - 1:
-                    time.sleep(retry_delay)
-                    retry_delay *= 2  # Exponential backoff
-                else:
-                    raise
+    def update_vehicule_status(context: Dict[str, Any]) -> None:
+        """Update vehicle status in database"""
+        try:
+            conn = sqlite3.connect(db_path, timeout=10)
+            cursor = conn.cursor()
+            cursor.execute(
+                "UPDATE vehicules SET statut = ? WHERE vehicule_id = ?",
+                (context['new_status'], context['vehicule_id'])
+            )
+            conn.commit()
+            conn.close()
+        except Exception as e:
+            print(f"Error updating vehicule status: {e}")
     
     def create_trajet(context: Dict[str, Any]) -> None:
         """Create journey record when vehicle starts"""
-        max_retries = 3
-        retry_delay = 0.1
-        
-        for attempt in range(max_retries):
-            try:
-                conn = sqlite3.connect(db_path, timeout=10)  # ✅ Add timeout
-                cursor = conn.cursor()
+        try:
+            conn = sqlite3.connect(db_path, timeout=10)
+            cursor = conn.cursor()
+            
+            # Get current zone from vehicle
+            cursor.execute(
+                "SELECT zone_actuelle_id FROM vehicules WHERE vehicule_id = ?",
+                (context['vehicule_id'],)
+            )
+            result = cursor.fetchone()
+            zone_depart_id = result[0] if result else None
+            
+            if zone_depart_id:
                 cursor.execute(
                     """INSERT INTO trajets (vehicule_id, zone_depart_id, timestamp_depart, statut)
                     VALUES (?, ?, datetime('now'), 'en_cours')""",
-                    (context['vehicule_id'], context.get('zone_depart_id'))
+                    (context['vehicule_id'], zone_depart_id)
                 )
                 conn.commit()
-                conn.close()
-                return  # Success
-            except sqlite3.OperationalError as e:
-                if "database is locked" in str(e) and attempt < max_retries - 1:
-                    time.sleep(retry_delay)
-                    retry_delay *= 2
-                else:
-                    print(f"Error creating trajet: {e}")
-                    return
+            
+            conn.close()
+        except Exception as e:
+            print(f"Error creating trajet: {e}")
     
     def complete_trajet(context: Dict[str, Any]) -> None:
         """Complete journey record when vehicle arrives"""
-        max_retries = 3
-        retry_delay = 0.1
-        
-        for attempt in range(max_retries):
-            try:
-                conn = sqlite3.connect(db_path, timeout=10)  # ✅ Add timeout
-                cursor = conn.cursor()
-                
+        try:
+            conn = sqlite3.connect(db_path, timeout=10)
+            cursor = conn.cursor()
+            
+            # Get current zone as arrival zone
+            cursor.execute(
+                "SELECT zone_actuelle_id FROM vehicules WHERE vehicule_id = ?",
+                (context['vehicule_id'],)
+            )
+            result = cursor.fetchone()
+            zone_arrivee_id = result[0] if result else None
+            
+            if zone_arrivee_id:
                 cursor.execute(
                     """UPDATE trajets 
-                    SET zone_arrivee_id = ?, 
+                    SET zone_arrivee_id = ?,
                         timestamp_arrivee = datetime('now'),
-                        distance_km = ?,
-                        economie_co2 = ?,
                         statut = 'termine'
                     WHERE vehicule_id = ? 
                     AND timestamp_arrivee IS NULL
                     ORDER BY timestamp_depart DESC
                     LIMIT 1""",
-                    (context.get('zone_arrivee_id'), context.get('distance_km', 0),
-                    context.get('economie_co2', 0), context['vehicule_id'])
+                    (zone_arrivee_id, context['vehicule_id'])
                 )
                 conn.commit()
-                conn.close()
-                return  # Success
-            except sqlite3.OperationalError as e:
-                if "database is locked" in str(e) and attempt < max_retries - 1:
-                    time.sleep(retry_delay)
-                    retry_delay *= 2
-                else:
-                    print(f"Error completing trajet: {e}")
-                    return
+            
+            conn.close()
+        except Exception as e:
+            print(f"Error completing trajet: {e}")
     
-    # Create FSM
-    fsm = StateMachine(name=f"Vehicle_{vehicule_id}", initial_state=VehicleState.STATIONNE)
+    fsm = StateMachine(name=f"Vehicule_{vehicule_id}", initial_state="stationne")
     
     # Add all states
-    for state in VehicleState:
-        fsm.add_state(state.value)
+    states = ["stationne", "en_route", "en_panne", "arrive"]
+    for state in states:
+        fsm.add_state(state)
     
-    # Define transitions
-    # STATIONNE -> EN_ROUTE
-    fsm.add_transition(
-        VehicleState.STATIONNE, VehicleState.EN_ROUTE, VehicleEvent.DEMARRER,
-        action=lambda ctx: [
-            update_vehicle_status({**ctx, 'new_status': 'en_route'}),
-            create_trajet(ctx)
-        ]
-    )
+    # STATIONNE transitions
+    fsm.add_transition("stationne", "en_route", "démarrer",
+                      action=lambda ctx: [
+                          update_vehicule_status({**ctx, 'new_status': 'en_route'}),
+                          create_trajet(ctx)
+                      ])
     
-    # EN_ROUTE -> EN_PANNE
-    fsm.add_transition(
-        VehicleState.EN_ROUTE, VehicleState.EN_PANNE, VehicleEvent.TOMBER_EN_PANNE,
-        action=lambda ctx: update_vehicle_status({**ctx, 'new_status': 'en_panne'})
-    )
+    # EN_ROUTE transitions
+    fsm.add_transition("en_route", "arrive", "arrivée",
+                      action=lambda ctx: [
+                          update_vehicule_status({**ctx, 'new_status': 'arrive'}),
+                          complete_trajet(ctx)
+                      ])
+    fsm.add_transition("en_route", "en_panne", "panne",
+                      action=lambda ctx: update_vehicule_status({**ctx, 'new_status': 'en_panne'}))
     
-    # EN_PANNE -> EN_ROUTE
-    fsm.add_transition(
-        VehicleState.EN_PANNE, VehicleState.EN_ROUTE, VehicleEvent.REPARER,
-        action=lambda ctx: update_vehicle_status({**ctx, 'new_status': 'en_route'})
-    )
-    
-    # EN_ROUTE -> ARRIVE
-    fsm.add_transition(
-        VehicleState.EN_ROUTE, VehicleState.ARRIVE, VehicleEvent.ARRIVER,
-        action=lambda ctx: [
-            update_vehicle_status({**ctx, 'new_status': 'arrive'}),
-            complete_trajet(ctx)
-        ]
-    )
-    
-    # ARRIVE -> STATIONNE
-    fsm.add_transition(
-        VehicleState.ARRIVE, VehicleState.STATIONNE, VehicleEvent.STATIONNER,
-        action=lambda ctx: update_vehicle_status({**ctx, 'new_status': 'stationne'})
-    )
+    # EN_PANNE transitions
+    fsm.add_transition("en_panne", "stationne", "réparé",
+                      action=lambda ctx: update_vehicule_status({**ctx, 'new_status': 'stationne'}))
     
     return fsm
+
+
 
 # ============================================================================
 # FSM MANAGER
@@ -554,30 +607,40 @@ class FSMManager:
     
     def __init__(self, db_path: str):
         self.db_path = db_path
-        self.sensor_fsms: Dict[int, StateMachine] = {}
+        self.sensor_fsms: Dict[str, StateMachine] = {}
         self.intervention_fsms: Dict[int, StateMachine] = {}
-        self.vehicle_fsms: Dict[int, StateMachine] = {}
+        self.vehicle_fsms: Dict[str, StateMachine] = {}
+    def clear_sensor_cache(self, capteur_id: str) -> None:
+        """Clear cached FSM for a sensor to force reload from DB"""
+        if capteur_id in self.sensor_fsms:
+            del self.sensor_fsms[capteur_id]
+            print(f"🧹 Cleared FSM cache for sensor {capteur_id}")
     
-    def get_sensor_fsm(self, capteur_id: str, current_status: str = None) -> StateMachine:  # ✅ Changed to str
+    def clear_intervention_cache(self, intervention_id: int) -> None:
+        """Clear cached FSM for an intervention to force reload from DB"""
+        if intervention_id in self.intervention_fsms:
+            del self.intervention_fsms[intervention_id]
+            print(f"🧹 Cleared FSM cache for intervention {intervention_id}")
+    
+    def get_sensor_fsm(self, capteur_id: str, current_status: str = None) -> StateMachine:
         """Get or create FSM for a sensor"""
         if capteur_id not in self.sensor_fsms:
             fsm = create_sensor_fsm(self.db_path, capteur_id)
             
-            # Set current state from database if provided
             if current_status:
                 fsm.current_state = current_status
             else:
-                # Fetch from database
-                conn = sqlite3.connect(self.db_path)
-                cursor = conn.cursor()
-                cursor.execute("SELECT statut FROM capteurs WHERE capteur_id = ?", (capteur_id,))
-                result = cursor.fetchone()
-                conn.close()
-                if result:
-                    fsm.current_state = result[0]
-                else:
-                    # If sensor doesn't exist, initialize to INACTIF
-                    fsm.current_state = SensorState.INACTIF.value
+                try:
+                    conn = sqlite3.connect(self.db_path)
+                    conn.row_factory = sqlite3.Row
+                    cursor = conn.cursor()
+                    cursor.execute("SELECT statut FROM capteurs WHERE capteur_id = ?", (capteur_id,))
+                    result = cursor.fetchone()
+                    conn.close()
+                    if result:
+                        fsm.current_state = result['statut']
+                except Exception as e:
+                    print(f"Error fetching capteur status: {e}")
             
             self.sensor_fsms[capteur_id] = fsm
         
@@ -591,44 +654,47 @@ class FSMManager:
             if current_status:
                 fsm.current_state = current_status
             else:
-                conn = sqlite3.connect(self.db_path)
-                cursor = conn.cursor()
-                cursor.execute("SELECT statut FROM interventions WHERE intervention_id = ?", (intervention_id,))
-                result = cursor.fetchone()
-                conn.close()
-                if result:
-                    fsm.current_state = result[0]
-                else:
-                    # If intervention doesn't exist, initialize to DEMANDE
-                    fsm.current_state = InterventionState.DEMANDE.value
+                try:
+                    conn = sqlite3.connect(self.db_path)
+                    conn.row_factory = sqlite3.Row
+                    cursor = conn.cursor()
+                    cursor.execute("SELECT statut FROM interventions WHERE intervention_id = ?", (intervention_id,))
+                    result = cursor.fetchone()
+                    conn.close()
+                    if result:
+                        fsm.current_state = result['statut']
+                except Exception as e:
+                    print(f"Error fetching intervention status: {e}")
             
             self.intervention_fsms[intervention_id] = fsm
         
         return self.intervention_fsms[intervention_id]
     
-    def get_vehicle_fsm(self, vehicule_id: int, current_status: str = None) -> StateMachine:  # ✅ Keep as int for now
+    def get_vehicle_fsm(self, vehicule_id: str, current_status: str = None) -> StateMachine:
         """Get or create FSM for a vehicle"""
         if vehicule_id not in self.vehicle_fsms:
-            fsm = create_vehicle_fsm(self.db_path, str(vehicule_id))  # ✅ Convert to str
+            fsm = create_vehicle_fsm(self.db_path, vehicule_id)
             
             if current_status:
                 fsm.current_state = current_status
             else:
-                conn = sqlite3.connect(self.db_path)
-                cursor = conn.cursor()
-                cursor.execute("SELECT statut FROM vehicules WHERE vehicule_id = ?", (str(vehicule_id),))  # ✅ Convert to str
-                result = cursor.fetchone()
-                conn.close()
-                if result:
-                    fsm.current_state = result[0]
-                else:
-                    # If vehicle doesn't exist, initialize to STATIONNE
-                    fsm.current_state = VehicleState.STATIONNE.value
+                try:
+                    conn = sqlite3.connect(self.db_path)
+                    conn.row_factory = sqlite3.Row
+                    cursor = conn.cursor()
+                    cursor.execute("SELECT statut FROM vehicules WHERE vehicule_id = ?", (vehicule_id,))
+                    result = cursor.fetchone()
+                    conn.close()
+                    if result:
+                        fsm.current_state = result['statut']
+                except Exception as e:
+                    print(f"Error fetching vehicule status: {e}")
             
             self.vehicle_fsms[vehicule_id] = fsm
         
         return self.vehicle_fsms[vehicule_id]
-    def trigger_sensor_event(self, capteur_id: int, event: str, context: Dict[str, Any] = None) -> str:
+    
+    def trigger_sensor_event(self, capteur_id: str, event: str, context: Dict[str, Any] = None) -> str:
         """Trigger event on sensor FSM"""
         if context is None:
             context = {}
@@ -646,40 +712,11 @@ class FSMManager:
         fsm = self.get_intervention_fsm(intervention_id)
         return fsm.trigger(event, context)
     
-    def trigger_vehicle_event(self, vehicule_id, event: str, context: Dict[str, Any] = None) -> str:
+    def trigger_vehicle_event(self, vehicule_id: str, event: str, context: Dict[str, Any] = None) -> str:
         """Trigger event on vehicle FSM"""
         if context is None:
             context = {}
         context['vehicule_id'] = vehicule_id
         
-        # Convert to int for FSM cache key if it's numeric, otherwise use as-is
-        try:
-            cache_key = int(vehicule_id)
-        except:
-            cache_key = vehicule_id
-        
-        fsm = self.get_vehicle_fsm(cache_key)
+        fsm = self.get_vehicle_fsm(vehicule_id)
         return fsm.trigger(event, context)
-
-
-if __name__ == "__main__":
-    # Demo usage
-    print("=== FSM Engine Demo ===\n")
-    
-    # Create a sensor FSM
-    fsm = StateMachine("Demo_Sensor", "inactif")
-    fsm.add_transition("inactif", "actif", "activer")
-    fsm.add_transition("actif", "signale", "detecter_anomalie")
-    fsm.add_transition("signale", "en_maintenance", "reparer")
-    
-    print(fsm.get_state_diagram())
-    print(f"\nCurrent state: {fsm.current_state}")
-    
-    print("\n--- Triggering events ---")
-    print(f"After 'activer': {fsm.trigger('activer')}")
-    print(f"After 'detecter_anomalie': {fsm.trigger('detecter_anomalie')}")
-    print(f"After 'reparer': {fsm.trigger('reparer')}")
-    
-    print("\n--- FSM History ---")
-    for entry in fsm.history:
-        print(f"{entry['timestamp']}: {entry['from_state']} --[{entry['event']}]--> {entry['to_state']}")
