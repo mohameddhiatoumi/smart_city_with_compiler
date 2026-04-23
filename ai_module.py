@@ -1,16 +1,33 @@
 """
 AI Generative Module for Neo-Sousse 2030
-UPDATED: Works with OpenRouter API (free tier available)
+UPDATED: PostgreSQL + OpenRouter API (free tier available)
 """
 
 import os
 from typing import Dict, List, Any, Optional
 from datetime import datetime
-import sqlite3
 import json
+import psycopg2
 from openai import OpenAI
 from dotenv import load_dotenv
+
 load_dotenv()
+
+# ✅ CHANGE 1: PostgreSQL configuration
+DB_HOST = os.getenv('DB_HOST', 'localhost')
+DB_USER = os.getenv('DB_USER', 'postgres')
+DB_PASSWORD = os.getenv('DB_PASSWORD', 'postgres')
+DB_NAME = os.getenv('DB_NAME', 'neo_sousse_2030')
+DB_PORT = os.getenv('DB_PORT', '5432')
+
+def get_db_connection():
+    return psycopg2.connect(
+        host=DB_HOST,
+        user=DB_USER,
+        password=DB_PASSWORD,
+        database=DB_NAME,
+        port=DB_PORT
+    )
 
 
 class AIGenerator:
@@ -22,22 +39,16 @@ class AIGenerator:
         Initialize AI Generator
         
         Args:
-            api_key: API key (if None, reads from OPENROUTER_API_KEY or OPENAI_API_KEY env var)
-            db_path: Path to SQLite database
+            api_key: API key (if None, reads from environment)
+            db_path: Not used in PostgreSQL mode, kept for compatibility
             use_openrouter: If True, use OpenRouter API (default), else use OpenAI
         """
         self.use_openrouter = use_openrouter
         
-        # Try to get API key from environment or parameter
         if use_openrouter:
             self.api_key = api_key or os.getenv("OPENROUTER_API_KEY") or os.getenv("OPENAI_API_KEY")
             self.base_url = "https://openrouter.ai/api/v1"
-            # Use a free model from OpenRouter
-            self.model = "openrouter/auto"  # Free model!
-            # Alternative free models you can try:
-            # "google/gemma-2-9b-it:free"
-            # "meta-llama/llama-3.1-8b-instruct:free"
-            # "mistralai/mistral-7b-instruct:free"
+            self.model = "openrouter/auto"
         else:
             self.api_key = api_key or os.getenv("OPENAI_API_KEY")
             self.base_url = "https://api.openai.com/v1"
@@ -49,7 +60,6 @@ class AIGenerator:
                 "or pass api_key parameter. Get free key at: https://openrouter.ai/keys"
             )
         
-        # Initialize OpenAI client (works with OpenRouter too!)
         self.client = OpenAI(
             api_key=self.api_key,
             base_url=self.base_url
@@ -62,14 +72,24 @@ class AIGenerator:
         print(f"  Model: {self.model}")
     
     def _query_database(self, query: str, params: tuple = ()) -> List[Dict[str, Any]]:
-        """Execute database query and return results as list of dicts"""
-        conn = sqlite3.connect(self.db_path)
-        conn.row_factory = sqlite3.Row  # Enable column access by name
-        cursor = conn.cursor()
-        cursor.execute(query, params)
-        results = [dict(row) for row in cursor.fetchall()]
-        conn.close()
-        return results
+        """Execute database query using PostgreSQL and return results as list of dicts"""
+        # ✅ CHANGE 2: Use PostgreSQL
+        conn = None
+        try:
+            conn = get_db_connection()
+            cursor = conn.cursor()
+            cursor.execute(query, params)
+            
+            columns = [desc[0] for desc in cursor.description] if cursor.description else []
+            results = []
+            for row in cursor.fetchall():
+                results.append(dict(zip(columns, row)))
+            
+            cursor.close()
+            return results
+        finally:
+            if conn:
+                conn.close()
     
     def _call_ai(self, system_prompt: str, user_prompt: str, 
                  temperature: float = 0.7, max_tokens: int = 1000) -> str:
@@ -77,10 +97,9 @@ class AIGenerator:
         try:
             extra_headers = {}
             if self.use_openrouter:
-                # OpenRouter-specific headers
                 extra_headers = {
-                    "HTTP-Referer": "https://github.com/neo-sousse-2030",  # Optional
-                    "X-Title": "Neo-Sousse 2030 Smart City"  # Optional
+                    "HTTP-Referer": "https://github.com/neo-sousse-2030",
+                    "X-Title": "Neo-Sousse 2030 Smart City"
                 }
             
             response = self.client.chat.completions.create(
@@ -91,7 +110,7 @@ class AIGenerator:
                 ],
                 temperature=temperature,
                 max_tokens=max_tokens,
-                extra_headers=extra_headers
+                extra_headers=extra_headers if extra_headers else None
             )
             return response.choices[0].message.content.strip()
         except Exception as e:
@@ -103,17 +122,9 @@ class AIGenerator:
     
     def generate_air_quality_report(self, zone_id: Optional[int] = None, 
                                     date_str: Optional[str] = None) -> str:
-        """
-        Generate natural language air quality report
+        """Generate natural language air quality report"""
         
-        Args:
-            zone_id: Specific zone (None = all zones)
-            date_str: Date in format 'YYYY-MM-DD' (None = today)
-        
-        Returns:
-            Natural language report in French
-        """
-        # Fetch air quality data
+        # ✅ CHANGE 3: Use %s instead of ? and CAST for PostgreSQL
         query = """
             SELECT 
                 z.nom as zone_name,
@@ -121,7 +132,7 @@ class AIGenerator:
                 AVG(m.valeur) as avg_value,
                 MAX(m.valeur) as max_value,
                 MIN(m.valeur) as min_value,
-                COUNT(CASE WHEN m.est_anomalie = 1 THEN 1 END) as anomaly_count,
+                SUM(CASE WHEN m.est_anomalie = TRUE THEN 1 ELSE 0 END) as anomaly_count,
                 COUNT(*) as total_measurements
             FROM mesures m
             JOIN capteurs c ON m.capteur_id = c.capteur_id
@@ -131,14 +142,14 @@ class AIGenerator:
         
         params = []
         if zone_id:
-            query += " AND z.zone_id = ?"
+            query += " AND z.zone_id = %s"
             params.append(zone_id)
         
         if date_str:
-            query += " AND DATE(m.timestamp) = ?"
+            query += " AND DATE(m.timestamp) = %s"
             params.append(date_str)
         else:
-            query += " AND DATE(m.timestamp) = DATE('now')"
+            query += " AND DATE(m.timestamp) = CURRENT_DATE"
         
         query += " GROUP BY z.nom, m.type_mesure ORDER BY z.nom, m.type_mesure"
         
@@ -147,8 +158,7 @@ class AIGenerator:
         if not data:
             return "Aucune donnée de qualité de l'air disponible pour la période demandée."
         
-        # Prepare data summary for AI
-        data_summary = json.dumps(data, indent=2, ensure_ascii=False)
+        data_summary = json.dumps(data, indent=2, ensure_ascii=False, default=str)
         
         date_display = date_str or datetime.now().strftime("%d/%m/%Y")
         zone_display = f"zone {zone_id}" if zone_id else "toutes les zones"
@@ -186,17 +196,10 @@ Note:
     # SENSOR MAINTENANCE RECOMMENDATIONS
     # ========================================================================
     
-    def generate_maintenance_recommendation(self, capteur_id: int) -> str:
-        """
-        Generate maintenance recommendation for a specific sensor
+    def generate_maintenance_recommendation(self, capteur_id: str) -> str:
+        """Generate maintenance recommendation for a specific sensor"""
         
-        Args:
-            capteur_id: Sensor ID
-        
-        Returns:
-            Natural language recommendation in French
-        """
-        # Fetch sensor data
+        # ✅ CHANGE 3: Use %s instead of ? and INTERVAL for PostgreSQL
         query = """
             SELECT 
                 c.capteur_id,
@@ -208,13 +211,13 @@ Note:
                 c.date_installation,
                 z.nom as zone_name,
                 COUNT(m.mesure_id) as total_measurements,
-                COUNT(CASE WHEN m.est_anomalie = 1 THEN 1 END) as recent_anomalies
+                SUM(CASE WHEN m.est_anomalie = TRUE THEN 1 ELSE 0 END) as recent_anomalies
             FROM capteurs c
             JOIN zones z ON c.zone_id = z.zone_id
             LEFT JOIN mesures m ON c.capteur_id = m.capteur_id 
-                AND m.timestamp >= datetime('now', '-7 days')
-            WHERE c.capteur_id = ?
-            GROUP BY c.capteur_id
+                AND m.timestamp >= NOW() - INTERVAL '7 days'
+            WHERE c.capteur_id = %s
+            GROUP BY c.capteur_id, z.zone_id, z.nom
         """
         
         data = self._query_database(query, (capteur_id,))
@@ -224,11 +227,11 @@ Note:
         
         sensor_info = data[0]
         
-        # Check for existing interventions
+        # ✅ CHANGE 3: Use %s instead of ?
         intervention_query = """
             SELECT statut, date_demande
             FROM interventions
-            WHERE capteur_id = ?
+            WHERE capteur_id = %s
             ORDER BY date_demande DESC
             LIMIT 1
         """
@@ -276,15 +279,9 @@ Génère une recommandation structurée avec:
     # ========================================================================
     
     def generate_traffic_analysis(self, zone_id: Optional[int] = None) -> str:
-        """
-        Generate traffic pattern analysis
+        """Generate traffic pattern analysis"""
         
-        Args:
-            zone_id: Specific zone (None = all zones)
-        
-        Returns:
-            Natural language traffic analysis in French
-        """
+        # ✅ CHANGE 3: Use %s and EXTRACT for PostgreSQL instead of strftime
         query = """
             SELECT 
                 z.nom as zone_name,
@@ -294,20 +291,20 @@ Génère une recommandation structurée avec:
                 AVG(t.distance_km) as avg_trip_distance,
                 COUNT(DISTINCT t.vehicule_id) as unique_vehicles,
                 CASE 
-                    WHEN CAST(strftime('%H', t.timestamp_depart) AS INTEGER) BETWEEN 7 AND 9 THEN 'Matin (7-9h)'
-                    WHEN CAST(strftime('%H', t.timestamp_depart) AS INTEGER) BETWEEN 12 AND 14 THEN 'Midi (12-14h)'
-                    WHEN CAST(strftime('%H', t.timestamp_depart) AS INTEGER) BETWEEN 17 AND 19 THEN 'Soir (17-19h)'
+                    WHEN EXTRACT(HOUR FROM t.timestamp_depart) BETWEEN 7 AND 9 THEN 'Matin (7-9h)'
+                    WHEN EXTRACT(HOUR FROM t.timestamp_depart) BETWEEN 12 AND 14 THEN 'Midi (12-14h)'
+                    WHEN EXTRACT(HOUR FROM t.timestamp_depart) BETWEEN 17 AND 19 THEN 'Soir (17-19h)'
                     ELSE 'Heures creuses'
                 END as time_period,
                 COUNT(*) as trips_in_period
             FROM trajets t
             JOIN zones z ON t.zone_depart_id = z.zone_id
-            WHERE t.timestamp_depart >= datetime('now', '-7 days')
+            WHERE t.timestamp_depart >= NOW() - INTERVAL '7 days'
         """
         
         params = []
         if zone_id:
-            query += " AND z.zone_id = ?"
+            query += " AND z.zone_id = %s"
             params.append(zone_id)
         
         query += " GROUP BY z.nom, time_period ORDER BY z.nom, trips_in_period DESC"
@@ -345,23 +342,13 @@ Inclus dans ton analyse:
         return self._call_ai(system_prompt, user_prompt, temperature=0.5, max_tokens=800)
     
     # ========================================================================
-    # FSM TRANSITION VALIDATION (Advanced)
+    # FSM TRANSITION VALIDATION
     # ========================================================================
     
     def validate_fsm_transition(self, entity_type: str, current_state: str, 
                                proposed_event: str, context: Dict[str, Any]) -> Dict[str, Any]:
-        """
-        Use AI to validate if a state transition makes logical sense
+        """Use AI to validate if a state transition makes logical sense"""
         
-        Args:
-            entity_type: 'sensor', 'intervention', or 'vehicle'
-            current_state: Current state of the entity
-            proposed_event: Event to trigger
-            context: Additional context data
-        
-        Returns:
-            Dict with 'is_valid', 'reasoning', and 'confidence'
-        """
         context_str = json.dumps(context, indent=2, ensure_ascii=False, default=str)
         
         system_prompt = f"""Tu es un validateur de transitions d'états pour le système Neo-Sousse 2030.
@@ -402,11 +389,9 @@ Est-ce que cette transition est logique et appropriée?
         
         try:
             response = self._call_ai(system_prompt, user_prompt, temperature=0.2, max_tokens=400)
-            # Try to parse JSON response
             result = json.loads(response)
             return result
         except json.JSONDecodeError:
-            # Fallback if AI doesn't return valid JSON
             return {
                 "is_valid": None,
                 "confidence": 0.0,
@@ -418,15 +403,9 @@ Est-ce que cette transition est logique et appropriée?
     # ========================================================================
     
     def generate_eco_score_report(self, citoyen_id: int) -> str:
-        """
-        Generate personalized eco-score report for a citizen
+        """Generate personalized eco-score report for a citizen"""
         
-        Args:
-            citoyen_id: Citizen ID
-        
-        Returns:
-            Natural language report with recommendations
-        """
+        # ✅ CHANGE 3: Use %s and INTERVAL for PostgreSQL
         query = """
             SELECT 
                 c.nom,
@@ -441,9 +420,9 @@ Est-ce que cette transition est logique et appropriée?
             LEFT JOIN zones z ON c.zone_id = z.zone_id
             LEFT JOIN vehicules v ON c.citoyen_id = v.citoyen_id
             LEFT JOIN trajets t ON v.vehicule_id = t.vehicule_id
-                AND t.timestamp_depart >= datetime('now', '-30 days')
-            WHERE c.citoyen_id = ?
-            GROUP BY c.citoyen_id
+                AND t.timestamp_depart >= NOW() - INTERVAL '30 days'
+            WHERE c.citoyen_id = %s
+            GROUP BY c.citoyen_id, z.zone_id, z.nom
         """
         
         data = self._query_database(query, (citoyen_id,))
@@ -490,25 +469,37 @@ class TemplateAIGenerator:
         self.db_path = db_path
     
     def _query_database(self, query: str, params: tuple = ()) -> List[Dict[str, Any]]:
-        """Execute database query and return results as list of dicts"""
-        conn = sqlite3.connect(self.db_path)
-        conn.row_factory = sqlite3.Row
-        cursor = conn.cursor()
-        cursor.execute(query, params)
-        results = [dict(row) for row in cursor.fetchall()]
-        conn.close()
-        return results
+        """Execute database query using PostgreSQL"""
+        # ✅ CHANGE 2: Use PostgreSQL
+        conn = None
+        try:
+            conn = get_db_connection()
+            cursor = conn.cursor()
+            cursor.execute(query, params)
+            
+            columns = [desc[0] for desc in cursor.description] if cursor.description else []
+            results = []
+            for row in cursor.fetchall():
+                results.append(dict(zip(columns, row)))
+            
+            cursor.close()
+            return results
+        finally:
+            if conn:
+                conn.close()
     
     def generate_air_quality_report(self, zone_id: Optional[int] = None, 
                                     date_str: Optional[str] = None) -> str:
         """Template-based air quality report"""
+        
+        # ✅ CHANGE 3: Use %s instead of ? and CAST for PostgreSQL
         query = """
             SELECT 
                 z.nom as zone_name,
                 m.type_mesure,
                 AVG(m.valeur) as avg_value,
                 MAX(m.valeur) as max_value,
-                COUNT(CASE WHEN m.est_anomalie = 1 THEN 1 END) as anomaly_count
+                SUM(CASE WHEN m.est_anomalie = TRUE THEN 1 ELSE 0 END) as anomaly_count
             FROM mesures m
             JOIN capteurs c ON m.capteur_id = c.capteur_id
             JOIN zones z ON c.zone_id = z.zone_id
@@ -517,14 +508,14 @@ class TemplateAIGenerator:
         
         params = []
         if zone_id:
-            query += " AND z.zone_id = ?"
+            query += " AND z.zone_id = %s"
             params.append(zone_id)
         
         if date_str:
-            query += " AND DATE(m.timestamp) = ?"
+            query += " AND DATE(m.timestamp) = %s"
             params.append(date_str)
         else:
-            query += " AND DATE(m.timestamp) = DATE('now')"
+            query += " AND DATE(m.timestamp) = CURRENT_DATE"
         
         query += " GROUP BY z.nom, m.type_mesure"
         
@@ -546,7 +537,7 @@ class TemplateAIGenerator:
             report += f"  Moyenne: {row['avg_value']:.1f} {self._get_unit(row['type_mesure'])}\n"
             report += f"  Maximum: {row['max_value']:.1f} {self._get_unit(row['type_mesure'])}\n"
             
-            if row['anomaly_count'] > 0:
+            if row['anomaly_count'] and row['anomaly_count'] > 0:
                 report += f"  ⚠️  {row['anomaly_count']} anomalie(s) détectée(s)\n"
                 problems.append(f"{row['zone_name']} ({row['type_mesure']})")
             
@@ -570,8 +561,10 @@ class TemplateAIGenerator:
         }
         return units.get(type_mesure, '')
     
-    def generate_maintenance_recommendation(self, capteur_id: int) -> str:
+    def generate_maintenance_recommendation(self, capteur_id: str) -> str:
         """Template-based maintenance recommendation"""
+        
+        # ✅ CHANGE 3: Use %s instead of ?
         query = """
             SELECT 
                 c.capteur_id,
@@ -582,7 +575,7 @@ class TemplateAIGenerator:
                 z.nom as zone_name
             FROM capteurs c
             JOIN zones z ON c.zone_id = z.zone_id
-            WHERE c.capteur_id = ?
+            WHERE c.capteur_id = %s
         """
         
         data = self._query_database(query, (capteur_id,))
@@ -593,7 +586,7 @@ class TemplateAIGenerator:
         sensor = data[0]
         
         report = f"=== RECOMMANDATION MAINTENANCE ===\n"
-        report += f"Capteur: C-{sensor['capteur_id']} ({sensor['type_capteur']})\n"
+        report += f"Capteur: {sensor['capteur_id']} ({sensor['type_capteur']})\n"
         report += f"Zone: {sensor['zone_name']}\n"
         report += f"État: {sensor['statut']}\n"
         report += f"Taux d'erreur: {sensor['taux_erreur']:.1f}%\n\n"
@@ -610,26 +603,3 @@ class TemplateAIGenerator:
             report += "→ Maintenance préventive selon calendrier\n"
         
         return report
-
-
-if __name__ == "__main__":
-    # Demo usage
-    print("=== AI Module Demo (OpenRouter Compatible) ===\n")
-    
-    # Try OpenRouter version if API key available
-    try:
-        ai = AIGenerator(db_path="neo_sousse.db", use_openrouter=True)
-        print("✓ Using OpenRouter (free models available!)\n")
-        print("Available methods:")
-        print("- generate_air_quality_report()")
-        print("- generate_maintenance_recommendation()")
-        print("- generate_traffic_analysis()")
-        print("- validate_fsm_transition()")
-        print("- generate_eco_score_report()")
-    except ValueError as e:
-        print(f"⚠️  {e}\n")
-        print("Using template-based generator as fallback\n")
-        ai = TemplateAIGenerator(db_path="neo_sousse.db")
-        print("Available methods:")
-        print("- generate_air_quality_report()")
-        print("- generate_maintenance_recommendation()")

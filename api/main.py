@@ -6,11 +6,11 @@ Version 2.0 with FSM and AI modules integrated
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import RedirectResponse
-from dotenv import load_dotenv  # ← ADD THIS
+from dotenv import load_dotenv
 
 import os
 import sys
-load_dotenv() 
+load_dotenv()
 
 # Get project root directory
 PROJECT_ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
@@ -44,8 +44,8 @@ except (ImportError, ModuleNotFoundError) as e:
     print("   Place ai_routes.py in the project root directory")
     ai_router = None
 
-# Database path
-DB_PATH = os.path.join(PROJECT_ROOT, "neo_sousse.db")
+# ✅ CHANGE: Remove DB_PATH - no longer used with PostgreSQL
+# Database is accessed through PostgreSQL connection strings
 
 # Create FastAPI app with updated metadata
 app = FastAPI(
@@ -71,17 +71,24 @@ async def startup_event():
     print("  Neo-Sousse 2030 API v2.0 - Starting...")
     print("="*60)
     
-    # Check database
-    if os.path.exists(DB_PATH):
-        print(f"✓ Database found: {DB_PATH}")
-    else:
-        print(f"⚠️  Database not found at: {DB_PATH}")
-        print("   Run: python database/db_init.py")
+    # ✅ CHANGE: Check PostgreSQL connection instead
+    try:
+        from database.db_config import get_db_connection
+        conn = get_db_connection()
+        cursor = conn.cursor()
+        cursor.execute("SELECT 1")
+        cursor.close()
+        conn.close()
+        print("✓ PostgreSQL database connected")
+    except Exception as e:
+        print(f"⚠️  PostgreSQL connection failed: {e}")
+        print("   Make sure PostgreSQL is running and .env is configured")
     
     # Initialize FSM Manager
     if FSM_AVAILABLE:
         try:
-            init_fsm_manager(DB_PATH)
+            # ✅ CHANGE: Pass None instead of db_path (PostgreSQL doesn't need it)
+            init_fsm_manager(None)
             print("✓ FSM Manager initialized successfully")
         except Exception as e:
             print(f"⚠️  FSM initialization failed: {e}")
@@ -89,7 +96,7 @@ async def startup_event():
     # Initialize AI Generator
     if AI_AVAILABLE:
         try:
-            init_ai_generator(DB_PATH, use_openai=True)
+            init_ai_generator(None, use_openai=True)
             print("✓ AI Generator initialized successfully")
         except Exception as e:
             print(f"⚠️  AI initialization failed: {e}")
@@ -130,7 +137,7 @@ async def health_check():
         "status": "healthy",
         "service": "Neo-Sousse 2030 API",
         "version": API_VERSION,
-        "database": os.path.exists(DB_PATH),
+        "database": "PostgreSQL",  # ✅ CHANGE
         "fsm_module": FSM_AVAILABLE,
         "ai_module": AI_AVAILABLE
     }

@@ -1,23 +1,32 @@
-# test_openrouter.py
+"""
+Test PostgreSQL connection and FSM Manager
+"""
 import os
-from ai_module import AIGenerator
+from dotenv import load_dotenv
+from database.db_config import get_db_connection
+from fsm_engine import FSMManager
 
-# Check if API key is set
-api_key = os.getenv("OPENROUTER_API_KEY")
-print(f"✓ API Key found: {api_key is not None}")
+load_dotenv()
 
-if api_key:
-    print(f"  Key starts with: {api_key[:15]}...")
-    
-    # Test OpenRouter
-    try:
-        ai = AIGenerator(db_path="neo_sousse.db", use_openrouter=True)
-        print(f"\n✓ AI Generator initialized!")
-        print(f"  Provider: OpenRouter")
-        print(f"  Model: {ai.model}")
-        print("\n🎉 OpenRouter is working!")
-    except Exception as e:
-        print(f"\n✗ Error: {e}")
-else:
-    print("\n✗ No API key found!")
-    print("Set it with: set OPENROUTER_API_KEY=your-key")
+print("🧪 Testing PostgreSQL Connection...")
+try:
+    conn = get_db_connection()
+    cursor = conn.cursor()
+    cursor.execute("SELECT COUNT(*) FROM zones")
+    count = cursor.fetchone()[0]
+    cursor.close()
+    conn.close()
+    print(f"✅ PostgreSQL Connection OK - Found {count} zones")
+except Exception as e:
+    print(f"❌ Connection Error: {e}")
+    exit(1)
+
+print("\n🧪 Testing FSM Manager...")
+try:
+    fsm_manager = FSMManager(None)  # db_path not needed for this test
+    print("✅ FSM Manager initialized")
+except Exception as e:
+    print(f"❌ FSM Manager Error: {e}")
+    exit(1)
+
+print("\n✅ All tests passed! Ready to run the application.")

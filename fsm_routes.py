@@ -7,9 +7,26 @@ from pydantic import BaseModel
 from typing import Dict, Any, List, Optional
 import sys
 import os
-import sqlite3
 import json
-import time 
+import time
+import psycopg2
+from dotenv import load_dotenv
+
+# ✅ CHANGE 1: Import PostgreSQL config instead of sqlite3
+try:
+    from database.db_config import get_db_connection
+except ImportError:
+    load_dotenv()
+    
+    def get_db_connection():
+        """Fallback connection function"""
+        return psycopg2.connect(
+            host=os.getenv('DB_HOST', 'localhost'),
+            user=os.getenv('DB_USER', 'postgres'),
+            password=os.getenv('DB_PASSWORD', 'postgres'),
+            database=os.getenv('DB_NAME', 'neo_sousse_2030'),
+            port=os.getenv('DB_PORT', '5432')
+        )
 
 # Import FSM engine
 sys.path.append(os.path.dirname(__file__))
@@ -45,7 +62,7 @@ class VehicleEventRequest(BaseModel):
 
 # Response models
 class FSMStateResponse(BaseModel):
-    entity_id: str | int  # ✅ Changed from int to str
+    entity_id: str | int
     entity_type: str
     current_state: str
     valid_transitions: List[str]
@@ -63,7 +80,7 @@ class TransitionResponse(BaseModel):
 # ============================================================================
 
 @router.get("/sensors/{capteur_id}/state", response_model=FSMStateResponse)
-async def get_sensor_state(capteur_id: str):  # ✅ Changed from int to str
+async def get_sensor_state(capteur_id: str):
     """Get current state and valid transitions for a sensor"""
     if fsm_manager is None:
         raise HTTPException(status_code=500, detail="FSM manager not initialized")
@@ -84,7 +101,7 @@ async def get_sensor_state(capteur_id: str):  # ✅ Changed from int to str
 
 
 @router.post("/sensors/{capteur_id}/trigger", response_model=TransitionResponse)
-async def trigger_sensor_event(capteur_id: str, request: SensorEventRequest):  # ✅ Changed from int to str
+async def trigger_sensor_event(capteur_id: str, request: SensorEventRequest):
     """Trigger an event on a sensor FSM"""
     if fsm_manager is None:
         raise HTTPException(status_code=500, detail="FSM manager not initialized")
@@ -108,7 +125,7 @@ async def trigger_sensor_event(capteur_id: str, request: SensorEventRequest):  #
 
 
 @router.get("/sensors/{capteur_id}/diagram")
-async def get_sensor_diagram(capteur_id: str):  # ✅ Changed from int to str
+async def get_sensor_diagram(capteur_id: str):
     """Get textual FSM diagram for a sensor"""
     if fsm_manager is None:
         raise HTTPException(status_code=500, detail="FSM manager not initialized")
@@ -128,18 +145,22 @@ async def create_intervention_for_sensor(capteur_id: str):
     if fsm_manager is None:
         raise HTTPException(status_code=500, detail="FSM manager not initialized")
     
+    conn = None
     try:
-        conn = sqlite3.connect(fsm_manager.db_path)
+        # ✅ CHANGE 2: Use get_db_connection() instead of sqlite3.connect()
+        conn = get_db_connection()
         cursor = conn.cursor()
         
         # Check if sensor exists and is in en_maintenance
+        # ✅ CHANGE 3: Use %s instead of ?
         cursor.execute(
-            "SELECT capteur_id, statut FROM capteurs WHERE capteur_id = ?",
+            "SELECT capteur_id, statut FROM capteurs WHERE capteur_id = %s",
             (capteur_id,)
         )
         sensor = cursor.fetchone()
         
         if not sensor:
+            cursor.close()
             conn.close()
             print(f"❌ Sensor {capteur_id} not found in database")
             raise HTTPException(status_code=404, detail=f"Sensor {capteur_id} not found")
@@ -148,20 +169,26 @@ async def create_intervention_for_sensor(capteur_id: str):
         print(f"🔍 Sensor {sensor_id} current status: '{sensor_status}'")
         
         if sensor_status != 'en_maintenance':
+            cursor.close()
             conn.close()
             print(f"❌ Sensor {capteur_id} status is '{sensor_status}', expected 'en_maintenance'")
             raise HTTPException(status_code=400, detail=f"Sensor {capteur_id} is in '{sensor_status}' state, not 'en_maintenance'")
         
         # Create new intervention
+        # ✅ CHANGE 4: Use NOW() instead of datetime('now'), use %s
         cursor.execute(
             """INSERT INTO interventions (capteur_id, statut, date_demande)
-               VALUES (?, 'demande', datetime('now'))""",
-            (capteur_id,)
+               VALUES (%s, %s, NOW())
+               RETURNING intervention_id""",
+            (capteur_id, 'demande')
         )
         conn.commit()
         
-        intervention_id = cursor.lastrowid
+        # ✅ CHANGE 5: Use fetchone()[0] instead of lastrowid
+        intervention_id = cursor.fetchone()[0]
         print(f"✅ Created intervention {intervention_id} for sensor {capteur_id}")
+        
+        cursor.close()
         conn.close()
         
         return {
@@ -176,6 +203,8 @@ async def create_intervention_for_sensor(capteur_id: str):
         print(f"❌ Error creating intervention: {type(e).__name__}: {e}")
         import traceback
         traceback.print_exc()
+        if conn:
+            conn.close()
         raise HTTPException(status_code=500, detail=f"{type(e).__name__}: {str(e)}")
 
 
@@ -185,15 +214,18 @@ async def get_pending_interventions():
     if fsm_manager is None:
         raise HTTPException(status_code=500, detail="FSM manager not initialized")
     
+    conn = None
     try:
-        conn = sqlite3.connect(fsm_manager.db_path)
+        # ✅ CHANGE 2: Use get_db_connection()
+        conn = get_db_connection()
         cursor = conn.cursor()
         
         # Get all sensors that are in en_maintenance state
+        # ✅ CHANGE 3: Use %s instead of ?
         cursor.execute(
             """SELECT c.capteur_id, c.type_capteur, c.zone_id
                FROM capteurs c
-               WHERE c.statut = ?
+               WHERE c.statut = %s
                ORDER BY c.capteur_id DESC""",
             ('en_maintenance',)
         )
@@ -207,6 +239,7 @@ async def get_pending_interventions():
                 'zone_id': row[2]
             })
         
+        cursor.close()
         conn.close()
         
         return {
@@ -215,16 +248,18 @@ async def get_pending_interventions():
         }
     except Exception as e:
         print(f"Error in get_pending_interventions: {e}")
+        if conn:
+            conn.close()
         raise HTTPException(status_code=500, detail=str(e))
 
 @router.get("/interventions/{intervention_id}/state", response_model=FSMStateResponse)
-async def get_intervention_state(intervention_id: str):  # ✅ Changed from int to str
+async def get_intervention_state(intervention_id: str):
     """Get current state and valid transitions for an intervention"""
     if fsm_manager is None:
         raise HTTPException(status_code=500, detail="FSM manager not initialized")
     
     try:
-        intervention_id = int(intervention_id)  # ✅ Convert to int for DB lookup
+        intervention_id = int(intervention_id)
         fsm = fsm_manager.get_intervention_fsm(intervention_id)
         valid_transitions = [t.event for t in fsm.get_valid_transitions({'intervention_id': intervention_id})]
         
@@ -247,6 +282,7 @@ async def trigger_intervention_event(intervention_id: str, request: Intervention
     if fsm_manager is None:
         raise HTTPException(status_code=500, detail="FSM manager not initialized")
     
+    conn = None
     try:
         intervention_id = int(intervention_id)
         new_state = fsm_manager.trigger_intervention_event(
@@ -258,10 +294,13 @@ async def trigger_intervention_event(intervention_id: str, request: Intervention
         # If intervention is completed, clear both caches so they reload from DB
         if new_state == 'termine':
             try:
-                conn = sqlite3.connect(fsm_manager.db_path)
+                # ✅ CHANGE 2: Use get_db_connection()
+                conn = get_db_connection()
                 cursor = conn.cursor()
-                cursor.execute("SELECT capteur_id FROM interventions WHERE intervention_id = ?", (intervention_id,))
+                # ✅ CHANGE 3: Use %s instead of ?
+                cursor.execute("SELECT capteur_id FROM interventions WHERE intervention_id = %s", (intervention_id,))
                 result = cursor.fetchone()
+                cursor.close()
                 conn.close()
                 
                 if result:
@@ -272,6 +311,8 @@ async def trigger_intervention_event(intervention_id: str, request: Intervention
                     print(f"✅ Cleared cache for sensor {capteur_id} - intervention {intervention_id} completed")
             except Exception as e:
                 print(f"Error clearing cache: {e}")
+                if conn:
+                    conn.close()
         
         return TransitionResponse(
             success=True,
@@ -287,13 +328,13 @@ async def trigger_intervention_event(intervention_id: str, request: Intervention
 
 
 @router.get("/interventions/{intervention_id}/diagram")
-async def get_intervention_diagram(intervention_id: str):  # ✅ Changed from int to str
+async def get_intervention_diagram(intervention_id: str):
     """Get textual FSM diagram for an intervention"""
     if fsm_manager is None:
         raise HTTPException(status_code=500, detail="FSM manager not initialized")
     
     try:
-        intervention_id = int(intervention_id)  # ✅ Convert to int for DB lookup
+        intervention_id = int(intervention_id)
         fsm = fsm_manager.get_intervention_fsm(intervention_id)
         return {"diagram": fsm.get_state_diagram()}
     except ValueError:
@@ -307,13 +348,12 @@ async def get_intervention_diagram(intervention_id: str):  # ✅ Changed from in
 # ============================================================================
 
 @router.get("/vehicles/{vehicule_id}/state", response_model=FSMStateResponse)
-async def get_vehicle_state(vehicule_id: str):  # ✅ Keep as str
+async def get_vehicle_state(vehicule_id: str):
     """Get current state and valid transitions for a vehicle"""
     if fsm_manager is None:
         raise HTTPException(status_code=500, detail="FSM manager not initialized")
     
     try:
-        # Keep as string - vehicles use VARCHAR IDs
         fsm = fsm_manager.get_vehicle_fsm(vehicule_id)
         valid_transitions = [t.event for t in fsm.get_valid_transitions({'vehicule_id': vehicule_id})]
         
@@ -335,9 +375,8 @@ async def trigger_vehicle_event(vehicule_id: str, request: VehicleEventRequest):
         raise HTTPException(status_code=500, detail="FSM manager not initialized")
     
     try:
-        # Keep as string - vehicles use VARCHAR IDs
         new_state = fsm_manager.trigger_vehicle_event(
-            vehicule_id,  # ✅ Pass as string
+            vehicule_id,
             request.event,
             request.context
         )
@@ -362,12 +401,12 @@ async def get_vehicle_diagram(vehicule_id: str):
         raise HTTPException(status_code=500, detail="FSM manager not initialized")
     
     try:
-        # Keep as string - vehicles use VARCHAR IDs
         fsm = fsm_manager.get_vehicle_fsm(vehicule_id)
         return {"diagram": fsm.get_state_diagram()}
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
-#
+
+
 # ============================================================================
 # IA VALIDATION AUTO-TRANSITION
 # ============================================================================
@@ -383,6 +422,7 @@ async def ia_auto_validate(intervention_id: str):
     if fsm_manager is None:
         raise HTTPException(status_code=500, detail="FSM manager not initialized")
     
+    conn = None
     try:
         print(f"\n🔍 ia_auto_validate called with intervention_id: {intervention_id}")
         
@@ -405,15 +445,18 @@ async def ia_auto_validate(intervention_id: str):
             raise HTTPException(status_code=400, detail=f"Intervention is in '{fsm.current_state}' state, not 'ia_valide'")
         
         # Get validation data from intervention
-        conn = sqlite3.connect(fsm_manager.db_path)
+        # ✅ CHANGE 2: Use get_db_connection()
+        conn = get_db_connection()
         cursor = conn.cursor()
+        # ✅ CHANGE 3: Use %s instead of ?
         cursor.execute(
-            "SELECT description, capteur_id FROM interventions WHERE intervention_id = ?",
+            "SELECT description, capteur_id FROM interventions WHERE intervention_id = %s",
             (intervention_id_int,)
         )
         result = cursor.fetchone()
         
         if not result:
+            cursor.close()
             conn.close()
             print(f"❌ Intervention {intervention_id_int} not found")
             raise HTTPException(status_code=404, detail=f"Intervention not found")
@@ -441,15 +484,17 @@ async def ia_auto_validate(intervention_id: str):
             print(f"🔄 Generating validation data on-the-fly...")
             
             # Get sensor data
+            # ✅ CHANGE 3: Use %s instead of ?
             cursor.execute(
                 """SELECT c.type_capteur, m.valeur, m.type_mesure
                    FROM capteurs c
                    LEFT JOIN mesures m ON c.capteur_id = m.capteur_id
-                   WHERE c.capteur_id = ?
+                   WHERE c.capteur_id = %s
                    ORDER BY m.timestamp DESC LIMIT 1""",
                 (capteur_id,)
             )
             sensor_result = cursor.fetchone()
+            cursor.close()
             conn.close()
             
             if sensor_result:
@@ -485,7 +530,6 @@ async def ia_auto_validate(intervention_id: str):
                 
                 print(f"✅ Generated validation data: is_valid={is_valid}")
             else:
-                conn.close()
                 print(f"❌ No sensor data found for capteur {capteur_id}")
                 raise HTTPException(status_code=400, detail="No sensor measurement data found")
         
@@ -547,13 +591,18 @@ async def ia_auto_validate(intervention_id: str):
         raise
     except InvalidTransitionError as e:
         print(f"❌ InvalidTransitionError: {e}")
+        if conn:
+            conn.close()
         raise HTTPException(status_code=400, detail=str(e))
     except Exception as e:
         print(f"❌ Unexpected error: {type(e).__name__}: {e}")
         import traceback
         traceback.print_exc()
+        if conn:
+            conn.close()
         raise HTTPException(status_code=500, detail=f"{type(e).__name__}: {str(e)}")
-#
+
+
 # ============================================================================
 # UTILITY ROUTES
 # ============================================================================

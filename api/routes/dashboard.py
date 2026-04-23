@@ -20,7 +20,7 @@ router = APIRouter(prefix="/dashboard", tags=["Dashboard"])
 async def get_dashboard_stats():
     """Get overall system statistics"""
     
-    # Total and active sensors
+    # ✅ CHANGE: Use TRUE instead of 1 for PostgreSQL
     sensor_stats = execute_query("""
         SELECT 
             COUNT(*) as total,
@@ -30,17 +30,16 @@ async def get_dashboard_stats():
         FROM capteurs
     """)[0]
     
-    # Today's measurements
     today = datetime.now().replace(hour=0, minute=0, second=0, microsecond=0)
+    # ✅ CHANGE: Use %s instead of ?
     measurement_stats = execute_query("""
         SELECT 
             COUNT(*) as total,
-            SUM(est_anomalie) as anomalies
+            SUM(CASE WHEN est_anomalie = TRUE THEN 1 ELSE 0 END) as anomalies
         FROM mesures
-        WHERE timestamp >= ?
+        WHERE timestamp >= %s
     """, (today,))[0]
     
-    # Ongoing interventions
     intervention_count = execute_query("""
         SELECT COUNT(*) as count
         FROM interventions
@@ -62,6 +61,7 @@ async def get_dashboard_stats():
 async def get_recent_anomalies(limit: int = Query(10, ge=1, le=50)):
     """Get sensors with recent anomalies"""
     
+    # ✅ CHANGE: Use %s and TRUE instead of ? and 1
     query = """
         SELECT 
             c.capteur_id,
@@ -73,10 +73,10 @@ async def get_recent_anomalies(limit: int = Query(10, ge=1, le=50)):
         FROM capteurs c
         JOIN zones z ON c.zone_id = z.zone_id
         JOIN mesures m ON c.capteur_id = m.capteur_id
-        WHERE m.est_anomalie = 1
+        WHERE m.est_anomalie = TRUE
         GROUP BY c.capteur_id, c.type_capteur, z.nom, c.taux_erreur, c.nb_anomalies_totales
         ORDER BY last_anomaly DESC
-        LIMIT ?
+        LIMIT %s
     """
     
     results = execute_query(query, (limit,))
@@ -87,6 +87,7 @@ async def get_recent_anomalies(limit: int = Query(10, ge=1, le=50)):
 async def get_live_feed(limit: int = Query(20, ge=1, le=100)):
     """Get most recent measurements across all sensors"""
     
+    # ✅ CHANGE: Use %s instead of ?
     query = """
         SELECT 
             m.capteur_id,
@@ -101,7 +102,7 @@ async def get_live_feed(limit: int = Query(20, ge=1, le=100)):
         JOIN capteurs c ON m.capteur_id = c.capteur_id
         JOIN zones z ON c.zone_id = z.zone_id
         ORDER BY m.timestamp DESC
-        LIMIT ?
+        LIMIT %s
     """
     
     results = execute_query(query, (limit,))

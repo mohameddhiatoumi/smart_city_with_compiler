@@ -7,9 +7,27 @@ from enum import Enum
 from typing import Dict, List, Callable, Optional, Any
 from dataclasses import dataclass
 from datetime import datetime
-import sqlite3
 import json
 import time
+import os
+from dotenv import load_dotenv
+
+# ✅ CHANGE 1: Import PostgreSQL instead of SQLite
+try:
+    from database.db_config import get_db_connection
+except ImportError:
+    import psycopg2
+    load_dotenv()
+    
+    def get_db_connection():
+        """Fallback connection function"""
+        return psycopg2.connect(
+            host=os.getenv('DB_HOST', 'localhost'),
+            user=os.getenv('DB_USER', 'postgres'),
+            password=os.getenv('DB_PASSWORD', 'postgres'),
+            database=os.getenv('DB_NAME', 'neo_sousse_2030'),
+            port=os.getenv('DB_PORT', '5432')
+        )
 
 
 class FSMError(Exception):
@@ -196,6 +214,7 @@ def validate_sensor_with_ai(temp_value: float, original_value: float, type_capte
     report += f"\n\n{'✅ VALIDATION PASSED - Sensor maintenance approved!' if is_valid else '❌ VALIDATION FAILED - Please retry'}"
     
     return is_valid, report
+
 # ============================================================================
 # SENSOR LIFECYCLE FSM - CORRECTED FROM HANDMADE DIAGRAM
 # ============================================================================
@@ -205,17 +224,25 @@ def create_sensor_fsm(db_path: str, capteur_id: str) -> StateMachine:
     
     def update_capteur_status(context: Dict[str, Any]) -> None:
         """Update sensor status in database"""
+        conn = None
         try:
-            conn = sqlite3.connect(db_path)
+            # ✅ CHANGE 2: Use get_db_connection() instead of sqlite3.connect()
+            conn = get_db_connection()
             cursor = conn.cursor()
+            # ✅ CHANGE 3: Use %s instead of ?
             cursor.execute(
-                "UPDATE capteurs SET statut = ? WHERE capteur_id = ?",
+                "UPDATE capteurs SET statut = %s WHERE capteur_id = %s",
                 (context['new_status'], context['capteur_id'])
             )
             conn.commit()
-            conn.close()
+            cursor.close()
         except Exception as e:
             print(f"Error updating capteur status: {e}")
+            if conn:
+                conn.rollback()
+        finally:
+            if conn:
+                conn.close()
     
     fsm = StateMachine(name=f"Capteur_{capteur_id}", initial_state="inactif")
     
@@ -266,57 +293,66 @@ def create_intervention_fsm(db_path: str, intervention_id: int) -> StateMachine:
     
     def update_intervention_status(context: Dict[str, Any]) -> None:
         """Update intervention status in database"""
+        conn = None
         try:
-            conn = sqlite3.connect(db_path)
+            # ✅ CHANGE 2: Use get_db_connection()
+            conn = get_db_connection()
             cursor = conn.cursor()
             
-            updates = ["statut = ?"]
+            updates = ["statut = %s"]
             params = [context['new_status']]
             
             if 'technicien1_id' in context:
-                updates.append("technicien1_id = ?")
+                updates.append("technicien1_id = %s")
                 params.append(context['technicien1_id'])
             
             if 'technicien2_id' in context:
-                updates.append("technicien2_id = ?")
+                updates.append("technicien2_id = %s")
                 params.append(context['technicien2_id'])
             
             if 'validation_ia' in context:
-                updates.append("validation_ia = ?")
+                updates.append("validation_ia = %s")
                 params.append(context['validation_ia'])
             
             if 'ai_report' in context:
-                updates.append("description = ?")
+                updates.append("description = %s")
                 params.append(context['ai_report'])
             
+            # ✅ CHANGE 4: Use NOW() instead of datetime('now')
             if context['new_status'] == 'termine':
-                updates.append("date_terminaison = datetime('now')")
+                updates.append("date_terminaison = NOW()")
             
             params.append(context['intervention_id'])
             
-            query = f"UPDATE interventions SET {', '.join(updates)} WHERE intervention_id = ?"
+            query = f"UPDATE interventions SET {', '.join(updates)} WHERE intervention_id = %s"
             cursor.execute(query, params)
             conn.commit()
-            conn.close()
+            cursor.close()
         except Exception as e:
             print(f"Error updating intervention status: {e}")
+            if conn:
+                conn.rollback()
+        finally:
+            if conn:
+                conn.close()
     
     def generate_temp_value(context: Dict[str, Any]) -> None:
         """Generate corrected sensor value and store temporarily"""
         conn = None
         try:
-            conn = sqlite3.connect(db_path, timeout=10)
+            # ✅ CHANGE 2: Use get_db_connection()
+            conn = get_db_connection()
             cursor = conn.cursor()
             
             print(f"\n🔍 generate_temp_value called for intervention {context['intervention_id']}")
             
-            # Get sensor info
+            # ✅ CHANGE 3: Use %s instead of ?
             cursor.execute(
                 """SELECT c.capteur_id, c.type_capteur, m.valeur, m.type_mesure, m.mesure_id
                 FROM interventions i
                 JOIN capteurs c ON i.capteur_id = c.capteur_id
                 LEFT JOIN mesures m ON c.capteur_id = m.capteur_id
-                WHERE i.intervention_id = ?
+                WHERE i.intervention_id = %s
                 ORDER BY m.timestamp DESC LIMIT 1""",
                 (context['intervention_id'],)
             )
@@ -346,7 +382,7 @@ def create_intervention_fsm(db_path: str, intervention_id: int) -> StateMachine:
                 print(f"💾 Storing temp data: {temp_json}")
                 
                 cursor.execute(
-                    "UPDATE interventions SET description = ? WHERE intervention_id = ?",
+                    "UPDATE interventions SET description = %s WHERE intervention_id = %s",
                     (temp_json, context['intervention_id'])
                 )
                 conn.commit()
@@ -356,7 +392,6 @@ def create_intervention_fsm(db_path: str, intervention_id: int) -> StateMachine:
             else:
                 print(f"⚠️ No sensor data found for intervention {context['intervention_id']}")
             
-            conn.close()
         except Exception as e:
             print(f"❌ Error generating temp value: {type(e).__name__}: {e}")
             import traceback
@@ -371,14 +406,15 @@ def create_intervention_fsm(db_path: str, intervention_id: int) -> StateMachine:
         """AI validates the temp value and generates report"""
         conn = None
         try:
-            conn = sqlite3.connect(db_path, timeout=10)
+            # ✅ CHANGE 2: Use get_db_connection()
+            conn = get_db_connection()
             cursor = conn.cursor()
             
             print(f"\n🔍 ai_validate_sensor called for intervention {context['intervention_id']}")
             
-            # Get temp data from intervention
+            # ✅ CHANGE 3: Use %s instead of ?
             cursor.execute(
-                "SELECT capteur_id, description FROM interventions WHERE intervention_id = ?",
+                "SELECT capteur_id, description FROM interventions WHERE intervention_id = %s",
                 (context['intervention_id'],)
             )
             result = cursor.fetchone()
@@ -431,19 +467,19 @@ def create_intervention_fsm(db_path: str, intervention_id: int) -> StateMachine:
             validation_json = json.dumps(validation_data)
             print(f"💾 Storing validation data: {validation_json}")
             
-            # Update intervention with AI report
+            # ✅ CHANGE 3: Use %s instead of ?
             cursor.execute(
-                "UPDATE interventions SET description = ?, validation_ia = ? WHERE intervention_id = ?",
-                (validation_json, 1 if is_valid else 0, context['intervention_id'])
+                "UPDATE interventions SET description = %s, validation_ia = %s WHERE intervention_id = %s",
+                (validation_json, is_valid, context['intervention_id'])
             )
             
             # If valid, update sensor value using subquery
             if is_valid:
                 cursor.execute(
-                    """UPDATE mesures SET valeur = ? 
+                    """UPDATE mesures SET valeur = %s 
                     WHERE mesure_id = (
                         SELECT mesure_id FROM mesures 
-                        WHERE capteur_id = ? 
+                        WHERE capteur_id = %s 
                         ORDER BY timestamp DESC LIMIT 1
                     )""",
                     (temp_value, capteur_id)
@@ -456,7 +492,7 @@ def create_intervention_fsm(db_path: str, intervention_id: int) -> StateMachine:
             # Store in context for later use
             context['ai_report'] = ai_report
             context['is_valid'] = is_valid
-            context['validation_ia'] = 1 if is_valid else 0
+            context['validation_ia'] = is_valid
             
         except Exception as e:
             print(f"❌ Error in AI validation: {type(e).__name__}: {e}")
@@ -472,12 +508,13 @@ def create_intervention_fsm(db_path: str, intervention_id: int) -> StateMachine:
         """Update sensor from en_maintenance to actif"""
         conn = None
         try:
-            conn = sqlite3.connect(db_path, timeout=10)
+            # ✅ CHANGE 2: Use get_db_connection()
+            conn = get_db_connection()
             cursor = conn.cursor()
             
-            # Get capteur_id from intervention
+            # ✅ CHANGE 3: Use %s instead of ?
             cursor.execute(
-                "SELECT capteur_id FROM interventions WHERE intervention_id = ?",
+                "SELECT capteur_id FROM interventions WHERE intervention_id = %s",
                 (context['intervention_id'],)
             )
             result = cursor.fetchone()
@@ -488,8 +525,8 @@ def create_intervention_fsm(db_path: str, intervention_id: int) -> StateMachine:
                 
                 # Update sensor status to actif
                 cursor.execute(
-                    "UPDATE capteurs SET statut = 'actif' WHERE capteur_id = ?",
-                    (capteur_id,)
+                    "UPDATE capteurs SET statut = %s WHERE capteur_id = %s",
+                    ('actif', capteur_id)
                 )
                 conn.commit()
                 print(f"✅ Sensor {capteur_id} updated to actif")
@@ -530,14 +567,13 @@ def create_intervention_fsm(db_path: str, intervention_id: int) -> StateMachine:
     fsm.add_transition("tech2_valide", "demande", "rejeter",
                       action=lambda ctx: update_intervention_status({**ctx, 'new_status': 'demande'}))
     
-    # IA_VALIDE → TERMINÉ (updates sensor to actif)
-        # IA_VALIDE → TERMINÉ or DEMANDE (auto-decided by AI)
+    # IA_VALIDE → TERMINÉ or DEMANDE (auto-decided by AI)
     # If valid -> terminate
     fsm.add_transition("ia_valide", "termine", "auto_terminate",
                       condition=lambda ctx: ctx.get('is_valid', False),
                       action=lambda ctx: [
                           update_sensor_to_actif(ctx),
-                          update_intervention_status({**ctx, 'new_status': 'termine', 'validation_ia': 1})
+                          update_intervention_status({**ctx, 'new_status': 'termine', 'validation_ia': True})
                       ])
     
     # If invalid -> back to demand
@@ -555,75 +591,99 @@ def create_vehicle_fsm(db_path: str, vehicule_id: str) -> StateMachine:
     
     def update_vehicule_status(context: Dict[str, Any]) -> None:
         """Update vehicle status in database"""
+        conn = None
         try:
-            conn = sqlite3.connect(db_path, timeout=10)
+            # ✅ CHANGE 2: Use get_db_connection()
+            conn = get_db_connection()
             cursor = conn.cursor()
+            # ✅ CHANGE 3: Use %s instead of ?
             cursor.execute(
-                "UPDATE vehicules SET statut = ? WHERE vehicule_id = ?",
+                "UPDATE vehicules SET statut = %s WHERE vehicule_id = %s",
                 (context['new_status'], context['vehicule_id'])
             )
             conn.commit()
-            conn.close()
+            cursor.close()
         except Exception as e:
             print(f"Error updating vehicule status: {e}")
+            if conn:
+                conn.rollback()
+        finally:
+            if conn:
+                conn.close()
     
     def create_trajet(context: Dict[str, Any]) -> None:
         """Create journey record when vehicle starts"""
+        conn = None
         try:
-            conn = sqlite3.connect(db_path, timeout=10)
+            # ✅ CHANGE 2: Use get_db_connection()
+            conn = get_db_connection()
             cursor = conn.cursor()
             
-            # Get current zone from vehicle
+            # ✅ CHANGE 3: Use %s instead of ?
             cursor.execute(
-                "SELECT zone_actuelle_id FROM vehicules WHERE vehicule_id = ?",
+                "SELECT zone_actuelle_id FROM vehicules WHERE vehicule_id = %s",
                 (context['vehicule_id'],)
             )
             result = cursor.fetchone()
             zone_depart_id = result[0] if result else None
             
             if zone_depart_id:
+                # ✅ CHANGE 4: Use NOW() instead of datetime('now')
                 cursor.execute(
                     """INSERT INTO trajets (vehicule_id, zone_depart_id, timestamp_depart, statut)
-                    VALUES (?, ?, datetime('now'), 'en_cours')""",
-                    (context['vehicule_id'], zone_depart_id)
+                    VALUES (%s, %s, NOW(), %s)""",
+                    (context['vehicule_id'], zone_depart_id, 'en_cours')
                 )
                 conn.commit()
             
-            conn.close()
+            cursor.close()
         except Exception as e:
             print(f"Error creating trajet: {e}")
+            if conn:
+                conn.rollback()
+        finally:
+            if conn:
+                conn.close()
     
     def complete_trajet(context: Dict[str, Any]) -> None:
         """Complete journey record when vehicle arrives"""
+        conn = None
         try:
-            conn = sqlite3.connect(db_path, timeout=10)
+            # ✅ CHANGE 2: Use get_db_connection()
+            conn = get_db_connection()
             cursor = conn.cursor()
             
-            # Get current zone as arrival zone
+            # ✅ CHANGE 3: Use %s instead of ?
             cursor.execute(
-                "SELECT zone_actuelle_id FROM vehicules WHERE vehicule_id = ?",
+                "SELECT zone_actuelle_id FROM vehicules WHERE vehicule_id = %s",
                 (context['vehicule_id'],)
             )
             result = cursor.fetchone()
             zone_arrivee_id = result[0] if result else None
             
             if zone_arrivee_id:
+                # ✅ CHANGE 4: Use NOW() instead of datetime('now')
                 cursor.execute(
                     """UPDATE trajets 
-                    SET zone_arrivee_id = ?,
-                        timestamp_arrivee = datetime('now'),
-                        statut = 'termine'
-                    WHERE vehicule_id = ? 
+                    SET zone_arrivee_id = %s,
+                        timestamp_arrivee = NOW(),
+                        statut = %s
+                    WHERE vehicule_id = %s 
                     AND timestamp_arrivee IS NULL
                     ORDER BY timestamp_depart DESC
                     LIMIT 1""",
-                    (zone_arrivee_id, context['vehicule_id'])
+                    (zone_arrivee_id, 'termine', context['vehicule_id'])
                 )
                 conn.commit()
             
-            conn.close()
+            cursor.close()
         except Exception as e:
             print(f"Error completing trajet: {e}")
+            if conn:
+                conn.rollback()
+        finally:
+            if conn:
+                conn.close()
     
     fsm = StateMachine(name=f"Vehicule_{vehicule_id}", initial_state="stationne")
     
@@ -668,6 +728,7 @@ class FSMManager:
         self.sensor_fsms: Dict[str, StateMachine] = {}
         self.intervention_fsms: Dict[int, StateMachine] = {}
         self.vehicle_fsms: Dict[str, StateMachine] = {}
+        
     def clear_sensor_cache(self, capteur_id: str) -> None:
         """Clear cached FSM for a sensor to force reload from DB"""
         if capteur_id in self.sensor_fsms:
@@ -688,17 +749,22 @@ class FSMManager:
             if current_status:
                 fsm.current_state = current_status
             else:
+                conn = None
                 try:
-                    conn = sqlite3.connect(self.db_path)
-                    conn.row_factory = sqlite3.Row
+                    # ✅ CHANGE 2: Use get_db_connection()
+                    conn = get_db_connection()
                     cursor = conn.cursor()
-                    cursor.execute("SELECT statut FROM capteurs WHERE capteur_id = ?", (capteur_id,))
+                    # ✅ CHANGE 3: Use %s instead of ?
+                    cursor.execute("SELECT statut FROM capteurs WHERE capteur_id = %s", (capteur_id,))
                     result = cursor.fetchone()
-                    conn.close()
+                    cursor.close()
                     if result:
-                        fsm.current_state = result['statut']
+                        fsm.current_state = result[0]
                 except Exception as e:
                     print(f"Error fetching capteur status: {e}")
+                finally:
+                    if conn:
+                        conn.close()
             
             self.sensor_fsms[capteur_id] = fsm
         
@@ -712,17 +778,22 @@ class FSMManager:
             if current_status:
                 fsm.current_state = current_status
             else:
+                conn = None
                 try:
-                    conn = sqlite3.connect(self.db_path)
-                    conn.row_factory = sqlite3.Row
+                    # ✅ CHANGE 2: Use get_db_connection()
+                    conn = get_db_connection()
                     cursor = conn.cursor()
-                    cursor.execute("SELECT statut FROM interventions WHERE intervention_id = ?", (intervention_id,))
+                    # ✅ CHANGE 3: Use %s instead of ?
+                    cursor.execute("SELECT statut FROM interventions WHERE intervention_id = %s", (intervention_id,))
                     result = cursor.fetchone()
-                    conn.close()
+                    cursor.close()
                     if result:
-                        fsm.current_state = result['statut']
+                        fsm.current_state = result[0]
                 except Exception as e:
                     print(f"Error fetching intervention status: {e}")
+                finally:
+                    if conn:
+                        conn.close()
             
             self.intervention_fsms[intervention_id] = fsm
         
@@ -736,17 +807,22 @@ class FSMManager:
             if current_status:
                 fsm.current_state = current_status
             else:
+                conn = None
                 try:
-                    conn = sqlite3.connect(self.db_path)
-                    conn.row_factory = sqlite3.Row
+                    # ✅ CHANGE 2: Use get_db_connection()
+                    conn = get_db_connection()
                     cursor = conn.cursor()
-                    cursor.execute("SELECT statut FROM vehicules WHERE vehicule_id = ?", (vehicule_id,))
+                    # ✅ CHANGE 3: Use %s instead of ?
+                    cursor.execute("SELECT statut FROM vehicules WHERE vehicule_id = %s", (vehicule_id,))
                     result = cursor.fetchone()
-                    conn.close()
+                    cursor.close()
                     if result:
-                        fsm.current_state = result['statut']
+                        fsm.current_state = result[0]
                 except Exception as e:
                     print(f"Error fetching vehicule status: {e}")
+                finally:
+                    if conn:
+                        conn.close()
             
             self.vehicle_fsms[vehicule_id] = fsm
         

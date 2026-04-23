@@ -28,7 +28,8 @@ async def list_zones():
 @router.get("/{zone_id}", response_model=ZoneBase)
 async def get_zone(zone_id: int):
     """Get information about a specific zone"""
-    query = "SELECT zone_id, nom, description FROM zones WHERE zone_id = ?"
+    # ✅ CHANGE: Use %s instead of ?
+    query = "SELECT zone_id, nom, description FROM zones WHERE zone_id = %s"
     results = execute_query(query, (zone_id,))
     
     if not results:
@@ -46,6 +47,7 @@ async def get_zone_pollution(
     
     time_threshold = datetime.now() - timedelta(hours=hours)
     
+    # ✅ CHANGE: Use %s instead of ?
     query = """
         SELECT 
             z.zone_id,
@@ -58,7 +60,7 @@ async def get_zone_pollution(
         FROM zones z
         JOIN capteurs c ON z.zone_id = c.zone_id
         JOIN mesures m ON c.capteur_id = m.capteur_id
-        WHERE z.zone_id = ? AND m.timestamp >= ?
+        WHERE z.zone_id = %s AND m.timestamp >= %s
         GROUP BY z.zone_id, z.nom
     """
     
@@ -79,7 +81,8 @@ async def get_pollution_ranking(
     
     time_threshold = datetime.now() - timedelta(hours=hours)
     
-    query = f"""
+    # ✅ CHANGE: Use %s instead of ?
+    query = """
         SELECT 
             z.zone_id,
             z.nom as zone_nom,
@@ -88,7 +91,7 @@ async def get_pollution_ranking(
         FROM zones z
         JOIN capteurs c ON z.zone_id = c.zone_id
         JOIN mesures m ON c.capteur_id = m.capteur_id
-        WHERE m.type_mesure = ? AND m.timestamp >= ?
+        WHERE m.type_mesure = %s AND m.timestamp >= %s
         GROUP BY z.zone_id, z.nom
         ORDER BY avg_value DESC
     """
